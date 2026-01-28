@@ -61,20 +61,40 @@ func initSchema(db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS modules (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		module_id TEXT UNIQUE,
 		name TEXT NOT NULL,
 		description TEXT,
-		command TEXT NOT NULL,
-		keywords TEXT
+		tags TEXT,
+		version TEXT,
+		content TEXT
 	);
 	`
 	_, err := db.Exec(query)
     if err != nil {
         return fmt.Errorf("init schema: %w", err)
     }
-    
-    // Check if empty and seed purely for testing/demo purposes if needed
-    // In a real app, this might come from a remote sync.
 	return nil
+}
+
+// UpsertModule inserts or updates a module in the database
+func UpsertModule(modID, name, desc, tags, version, content string) error {
+    db, err := GetDB()
+    if err != nil {
+        return err
+    }
+    
+    query := `
+    INSERT INTO modules (module_id, name, description, tags, version, content)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(module_id) DO UPDATE SET
+        name=excluded.name,
+        description=excluded.description,
+        tags=excluded.tags,
+        version=excluded.version,
+        content=excluded.content;
+    `
+    _, err = db.Exec(query, modID, name, desc, tags, version, content)
+    return err
 }
 
 // SearchModules searches the database for modules matching the given keywords.
@@ -84,16 +104,15 @@ func SearchModules(keywords []string) ([]Module, error) {
 		return nil, err
 	}
 
-    // Simple search: check if any keyword matches description or name
-    // Building dynamic query
-    query := "SELECT id, name, description, command, keywords FROM modules WHERE "
+    // Simple search: check if any keyword matches description, name or tags
+    query := "SELECT id, name, description, '', tags FROM modules WHERE "
     args := []interface{}{}
     
     for i, kw := range keywords {
         if i > 0 {
             query += " OR "
         }
-        query += "name LIKE ? OR description LIKE ? OR keywords LIKE ?"
+        query += "name LIKE ? OR description LIKE ? OR tags LIKE ?"
         term := "%" + kw + "%"
         args = append(args, term, term, term)
     }
@@ -111,9 +130,11 @@ func SearchModules(keywords []string) ([]Module, error) {
 	var modules []Module
 	for rows.Next() {
 		var m Module
-		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &m.Command, &m.Keywords); err != nil {
+        var tags string
+		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &m.Command, &tags); err != nil {
 			continue
 		}
+        m.Keywords = tags // Mapping tags to keywords struct field
 		modules = append(modules, m)
 	}
 	return modules, nil

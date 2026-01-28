@@ -56,6 +56,16 @@ What would you like to do?
   ...
 ```
 
+### Module Sync
+To fetch the latest automation modules from the central repository:
+
+```text
+>> sync
+🔄 Syncing modules from remote...
+  Processing archive_directory.yaml...
+✅ Sync complete. Updated 66 modules.
+```
+
 ### Pipe Mode
 You can also pipe queries directly:
 
@@ -67,5 +77,5 @@ echo "check disk space" | ./clio
 
 1.  **Layer 1 (Static)**: Instant lookup for common patterns using Verb-Noun mapping.
 2.  **Layer 2 (Man Pages)**: Searches system manual pages.
-3.  **Layer 3 (Modules)**: (Coming Soon) Custom SQLite-based workflows.
+3.  **Layer 3 (Modules)**: Executes sophisticated automation flows (YAML) synced from [GitHub](https://github.com/themobileprof/clipilot/tree/main/modules).
 4.  **Layer 4 (Remote)**: Fallback to remote API for complex queries.

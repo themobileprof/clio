@@ -3,6 +3,7 @@ package repl
 import (
 	"bufio"
 	"clio/internal/intent"
+    "clio/internal/modules"
 	"clio/internal/safeexec"
 	"fmt"
 	"os"
@@ -30,6 +31,12 @@ func Run() {
         if input == "clear" {
             // clear screen
             print("\033[H\033[2J")
+            continue
+        }
+        if input == "sync" {
+            if err := modules.Sync(); err != nil {
+                fmt.Printf("Sync error: %v\n", err)
+            }
             continue
         }
 

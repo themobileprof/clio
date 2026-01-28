@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-commit hook to require tests to pass
+
+echo "Running tests..."
+go test ./...
+if [ $? -ne 0 ]; then
+    echo "Tests failed. Commit aborted."
+    exit 1
+fi
+echo "Tests passed."
+exeit 0

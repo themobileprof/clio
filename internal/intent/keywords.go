@@ -15,7 +15,7 @@ func IsolateKeywords(input string) []string {
 		"can": true, "you": true, "please": true, "the": true, "a": true,
 		"an": true, "is": true, "of": true, "in": true, "on": true,
 		"for": true, "and": true, "or": true, "with": true, "help": true,
-		"me": true,
+		"me": true, "all": true,
 	}
 
 	var keywords []string

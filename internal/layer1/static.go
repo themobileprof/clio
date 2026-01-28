@@ -182,7 +182,7 @@ var VerbAliases = map[string]string{
 
 // NounAliases for normalization
 var NounAliases = map[string]string{
-    "dirs": "directory", "folders": "directory", "dir": "directory",
+    "dirs": "directory", "folders": "directory", "dir": "directory", "folder": "directory",
     "doc": "file", "docs": "file", "document": "file",
     "program": "process", "app": "process", "task": "process",
     "img": "file", "image": "file", "video": "file",
@@ -219,14 +219,17 @@ func ParseIntent(input string) (string, string) {
     for _, t := range tokens {
         stemmed := Stem(t)
         // Skip if it's the verb we just found
-        if stemmed == verb || VideoAliases[stemmed] == verb { // typo in check, but logic holds
+        if stemmed == verb || VerbAliases[stemmed] == verb { 
              continue 
         }
         
+        // Direct Noun Alias check
         if n, ok := NounAliases[stemmed]; ok {
             noun = n
             break 
         }
+        
+        // ...
         // Check if this noun exists in the verb's map
         if verb != "" {
             if _, ok := VerbNounCatalog[verb][stemmed]; ok {
@@ -251,13 +254,25 @@ func ParseIntent(input string) (string, string) {
 // Stem is a very simple stemmer for common suffixes
 func Stem(word string) string {
     word = strings.TrimSpace(word)
+    // Special cases for irregular verbs if needed, but keeping it simple
+    if word == "copied" {
+        return "copy"
+    }
+    
     if strings.HasSuffix(word, "ing") {
         return word[:len(word)-3]
     }
     if strings.HasSuffix(word, "ed") {
         return word[:len(word)-2]
     }
-    if strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") {
+    // "status" -> ends in "s", not "ss". logic was word[:len-1] -> "statu".
+    // We want to avoid stripping 's' if the word key is 'status'.
+    // Or we just map "status" -> "status" in aliases?
+    // Let's protect "status" or just change the generic 's' rule to be safer?
+    if strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") && len(word) > 3 {
+        if word == "status" || word == "alias" { // exceptions
+            return word
+        }
         return word[:len(word)-1]
     }
     return word

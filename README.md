@@ -15,12 +15,18 @@ Clio is a lightweight, offline-first command-line assistant designed for Termux 
 
 ## Installation
 
-### Prerequisites
--   Go 1.22+
--   `man` (optional, for Layer 2 search)
+### Automatic Install (Recommended)
+You can install the latest binary automatically using curl. This script detects your OS/Arch (including Termux) and downloads the correct binary.
 
-### Build
-To build a small, static binary optimized for size:
+```bash
+curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+```
+
+### Manual Download
+Download the binary for your platform from the [Releases Page](https://github.com/themobileprof/clio/releases/latest) and place it in your path.
+
+### Build from Source (Optional)
+If you prefer to build it yourself:
 
 ```bash
 go build -ldflags="-s -w" -o clio ./cmd/clio

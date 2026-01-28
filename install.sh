@@ -21,19 +21,21 @@ case "$ARCH" in
     *)      echo "Unsupported Arch: $ARCH"; exit 1 ;;
 esac
 
-echo "Detected Platform: $OS/$ARCH"
-
 # Determine install path (Termux support)
+USE_SUDO=""
 if [ -n "$TERMUX_VERSION" ]; then
     INSTALL_DIR="$PREFIX/bin"
 else
     INSTALL_DIR="/usr/local/bin"
-    # Fallback to local user bin if no root access?
     if [ ! -w "$INSTALL_DIR" ]; then
+        echo "Note: $INSTALL_DIR is not writable."
         INSTALL_DIR="$HOME/.local/bin"
         mkdir -p "$INSTALL_DIR"
+        echo "Installing to $INSTALL_DIR instead."
     fi
 fi
+
+echo "Detected Platform: $OS/$ARCH"
 
 # Fetch latest release URL (using GitHub API or assume 'latest' redirect)
 # For simplicity, using 'latest' API to find asset name
@@ -46,20 +48,21 @@ install_man() {
     if [ -n "$TERMUX_VERSION" ]; then
         pkg install -y man
     elif command -v apt-get >/dev/null 2>&1; then
-        SUDO=""
-        [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
-        echo "Detected apt-get. Installing man-db..."
-        $SUDO apt-get update -qq && $SUDO apt-get install -y man-db
+        echo "Detected apt-get. Please install 'man-db' manually (or run as root)."
+        # check if we are root, if so, install
+        if [ "$(id -u)" -eq 0 ]; then
+             apt-get update -qq && apt-get install -y man-db
+        fi
     elif command -v apk >/dev/null 2>&1; then
-        SUDO=""
-        [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
-        echo "Detected apk. Installing man-db..."
-        $SUDO apk add man-db man-pages
+        echo "Detected apk. Please install 'man-db' manually (or run as root)."
+        if [ "$(id -u)" -eq 0 ]; then
+             apk add man-db man-pages
+        fi
     elif command -v dnf >/dev/null 2>&1; then
-        SUDO=""
-        [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
-        echo "Detected dnf. Installing man-db..."
-        $SUDO dnf install -y man-db
+        echo "Detected dnf. Please install 'man-db' manually (or run as root)."
+        if [ "$(id -u)" -eq 0 ]; then
+             dnf install -y man-db
+        fi
     else
         echo "Warning: Could not detect a supported package manager (pkg, apt, apk, dnf). Please install 'man' manually."
     fi
@@ -92,9 +95,13 @@ if [ ! -f "$BIN_NAME" ] || [ ! -s "$BIN_NAME" ]; then
     exit 1
 fi
 
-# Verify it's not a text file (simple heuristic)
-if grep -q "Not Found" "$BIN_NAME" || head -c 4 "$BIN_NAME" | grep -q "Not"; then
-    echo "Error: Downloaded file appears to be an error message (Not Found). Release might not exist."
+# Verify it's not a text file (simple heuristic: check size)
+# Go binaries are usually > 1MB. Let's be conservative and say > 100KB (102400 bytes).
+# "Not Found" is 9 bytes.
+FILE_SIZE=$(wc -c < "$BIN_NAME" | tr -d '[:space:]')
+if [ "$FILE_SIZE" -lt 102400 ]; then
+    echo "Error: Downloaded file is too small ($FILE_SIZE bytes). Likely an error message or invalid binary."
+    cat "$BIN_NAME" # Print content to help debug
     rm "$BIN_NAME"
     exit 1
 fi
@@ -102,4 +109,12 @@ fi
 chmod +x "$BIN_NAME"
 mv "$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
 
-echo "Successfully installed $BIN_NAME to $INSTALL_DIR"
+echo "✅ Successfully installed $BIN_NAME to $INSTALL_DIR"
+
+# Check PATH
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*) ;;
+    *) echo "⚠️  Warning: $INSTALL_DIR is not in your PATH. You may need to add it:"
+       echo "    export PATH=\"$INSTALL_DIR:\$PATH\""
+       ;;
+esac

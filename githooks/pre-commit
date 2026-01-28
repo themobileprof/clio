@@ -7,5 +7,13 @@ if [ $? -ne 0 ]; then
     echo "Tests failed. Commit aborted."
     exit 1
 fi
-echo "Tests passed."
-exeit 0
+
+echo "Building..."
+go build -v -o /dev/null ./cmd/clio
+if [ $? -ne 0 ]; then
+    echo "Build failed. Commit aborted."
+    exit 1
+fi
+
+echo "Tests and Build passed."
+exit 0

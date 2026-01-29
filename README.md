@@ -45,7 +45,7 @@ Type your query at the prompt:
 
 ```text
 >> how do I extract a tar file?
-✓ Command found: tar -xzvf
+✓ Use: tar -xzvf
 ────────────────────────
 Purpose : Extract tar.gz archive
 

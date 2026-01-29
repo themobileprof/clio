@@ -53,7 +53,7 @@ func Run() {
 
 func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
     // Exact UI from guide
-	fmt.Printf("\n✓ Command found: %s\n", res.Command)
+	fmt.Printf("\n✓ Use: %s\n", res.Command)
 	fmt.Println("────────────────────────")
 	fmt.Printf("Purpose : %s\n\n", res.Description)
 	fmt.Println("What would you like to do?")

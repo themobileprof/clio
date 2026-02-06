@@ -3,10 +3,10 @@ package layer3
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
-    "log"
 
 	_ "modernc.org/sqlite" // CGO-free SQLite
 )
@@ -70,20 +70,20 @@ func initSchema(db *sql.DB) error {
 	);
 	`
 	_, err := db.Exec(query)
-    if err != nil {
-        return fmt.Errorf("init schema: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("init schema: %w", err)
+	}
 	return nil
 }
 
 // UpsertModule inserts or updates a module in the database
 func UpsertModule(modID, name, desc, tags, version, content string) error {
-    db, err := GetDB()
-    if err != nil {
-        return err
-    }
-    
-    query := `
+	db, err := GetDB()
+	if err != nil {
+		return err
+	}
+
+	query := `
     INSERT INTO modules (module_id, name, description, tags, version, content)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(module_id) DO UPDATE SET
@@ -93,8 +93,8 @@ func UpsertModule(modID, name, desc, tags, version, content string) error {
         version=excluded.version,
         content=excluded.content;
     `
-    _, err = db.Exec(query, modID, name, desc, tags, version, content)
-    return err
+	_, err = db.Exec(query, modID, name, desc, tags, version, content)
+	return err
 }
 
 // SearchModules searches the database for modules matching the given keywords.
@@ -104,25 +104,25 @@ func SearchModules(keywords []string) ([]Module, error) {
 		return nil, err
 	}
 
-    // Simple search: check if any keyword matches description, name or tags
-    query := "SELECT id, name, description, '', tags FROM modules WHERE "
-    args := []interface{}{}
-    
-    for i, kw := range keywords {
-        if i > 0 {
-            query += " OR "
-        }
-        query += "name LIKE ? OR description LIKE ? OR tags LIKE ?"
-        term := "%" + kw + "%"
-        args = append(args, term, term, term)
-    }
-    
-    // Limit results
-    query += " LIMIT 5"
+	// Simple search: check if any keyword matches description, name or tags
+	query := "SELECT id, name, description, '', tags FROM modules WHERE "
+	args := []interface{}{}
+
+	for i, kw := range keywords {
+		if i > 0 {
+			query += " OR "
+		}
+		query += "name LIKE ? OR description LIKE ? OR tags LIKE ?"
+		term := "%" + kw + "%"
+		args = append(args, term, term, term)
+	}
+
+	// Limit results
+	query += " LIMIT 5"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
-        log.Printf("Query error: %v", err)
+		log.Printf("Query error: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -130,12 +130,29 @@ func SearchModules(keywords []string) ([]Module, error) {
 	var modules []Module
 	for rows.Next() {
 		var m Module
-        var tags string
+		var tags string
 		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &m.Command, &tags); err != nil {
 			continue
 		}
-        m.Keywords = tags // Mapping tags to keywords struct field
+		m.Keywords = tags // Mapping tags to keywords struct field
 		modules = append(modules, m)
 	}
 	return modules, nil
+}
+
+// GetModuleByID retrieves a module by its module_id and returns the full YAML content
+func GetModuleByID(moduleID string) (string, error) {
+	db, err := GetDB()
+	if err != nil {
+		return "", err
+	}
+
+	query := "SELECT content FROM modules WHERE module_id = ?"
+	var content string
+	err = db.QueryRow(query, moduleID).Scan(&content)
+	if err != nil {
+		return "", fmt.Errorf("module not found: %w", err)
+	}
+
+	return content, nil
 }

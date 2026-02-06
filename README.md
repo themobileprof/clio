@@ -40,6 +40,12 @@ Run the binary directly:
 ./clio
 ```
 
+**Special Commands:**
+- `setup` - Run Termux setup wizard (Termux only, first-time setup)
+- `sync` - Download latest automation modules from GitHub
+- `clear` - Clear the screen
+- `exit` or `quit` - Exit Clio
+
 ### Interactive Mode
 Type your query at the prompt:
 
@@ -55,6 +61,23 @@ What would you like to do?
   3) Show command only
   ...
 ```
+
+### Termux Setup (First-Time Users)
+If you're on Termux and haven't set up your development environment yet:
+
+```text
+>> setup
+```
+
+This interactive wizard will configure:
+- **System Updates**: Package updates and mirror optimization
+- **Storage Access**: Android storage integration
+- **Zsh Shell**: Oh-My-Zsh with Powerlevel10k theme
+- **Dev Tools**: Git, GitHub CLI, Vim (configured as lightweight IDE)
+- **AI Assistant**: LLM tool with DeepSeek integration
+- **Languages**: Optional installation of PHP, Node.js, Golang, Python
+
+The setup takes 10-20 minutes and only needs to be run once.
 
 ### Module Sync
 To fetch the latest automation modules from the central repository:

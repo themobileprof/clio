@@ -3,8 +3,10 @@ package repl
 import (
 	"bufio"
 	"clio/internal/intent"
-    "clio/internal/modules"
+	"clio/internal/layer3"
+	"clio/internal/modules"
 	"clio/internal/safeexec"
+	"clio/internal/setup"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +17,14 @@ func Run() {
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("CLIPilot Client (Offline First) - Type 'exit' to quit.")
 	fmt.Println("-----------------------------------------------------")
+
+	// Check if on Termux and setup is needed
+	if setup.IsTermux() && !setup.IsSetupComplete() {
+		fmt.Println("\n💡 First time on Termux?")
+		fmt.Println("   Run 'setup' for a complete development environment configuration.")
+		fmt.Println("   (Includes Zsh, Vim, Git, LLM, and more)")
+		fmt.Println()
+	}
 
 	for {
 		fmt.Print(">> ")
@@ -28,17 +38,43 @@ func Run() {
 		if input == "exit" || input == "quit" {
 			break
 		}
-        if input == "clear" {
-            // clear screen
-            print("\033[H\033[2J")
-            continue
-        }
-        if input == "sync" {
-            if err := modules.Sync(); err != nil {
-                fmt.Printf("Sync error: %v\n", err)
-            }
-            continue
-        }
+		if input == "clear" {
+			// clear screen
+			print("\033[H\033[2J")
+			continue
+		}
+		if input == "setup" {
+			if !setup.IsTermux() {
+				fmt.Println("⚠️  Termux setup is only available on Termux.")
+				continue
+			}
+
+			// Load the termux_setup module
+			yamlContent, err := layer3.GetModuleByID("termux_setup")
+			if err != nil {
+				fmt.Printf("Setup module not found: %v\n", err)
+				fmt.Println("Try running 'sync' to download modules.")
+				continue
+			}
+
+			module, err := modules.LoadModule(yamlContent)
+			if err != nil {
+				fmt.Printf("Failed to parse setup module: %v\n", err)
+				continue
+			}
+
+			// Execute the setup flow
+			if err := modules.ExecuteModule(module, "setup", scanner); err != nil {
+				fmt.Printf("Setup error: %v\n", err)
+			}
+			continue
+		}
+		if input == "sync" {
+			if err := modules.Sync(); err != nil {
+				fmt.Printf("Sync error: %v\n", err)
+			}
+			continue
+		}
 
 		// Intent Detection
 		result, err := intent.Detect(input)
@@ -52,92 +88,91 @@ func Run() {
 }
 
 func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
-    // Exact UI from guide
-	fmt.Printf("\n✓ Use: %s\n", res.Command)
-	fmt.Println("────────────────────────")
-	fmt.Printf("Purpose : %s\n\n", res.Description)
-	fmt.Println("What would you like to do?")
-	fmt.Println("  1) Show examples and usage  (recommended)")
-	fmt.Println("  2) Run the command          (interactive)")
-	fmt.Println("  3) Show command only        (exit)")
-	fmt.Println("  4) Search for another command")
-	fmt.Println("  0) Cancel")
-	fmt.Println("")
-	fmt.Print("Choice [1-4, 0]: ")
+	for {
+		// Exact UI from guide (refreshed)
+		fmt.Printf("\n✓ Use: %s\n", res.Command)
+		fmt.Println("────────────────────────")
+		fmt.Printf("Purpose : %s\n\n", res.Description)
+		fmt.Println("What would you like to do?")
+		fmt.Println("  1) Show examples and usage")
+		fmt.Println("  2) Run the command")
+		fmt.Println("  3) Copy command to clipboard (Print only)")
+		fmt.Println("  4) Search for another command")
+		fmt.Println("  0) Cancel")
+		fmt.Println("")
+		fmt.Print("Choice [1-4, 0]: ")
 
-	if !scanner.Scan() {
-		return
-	}
-	choice := strings.TrimSpace(scanner.Text())
+		if !scanner.Scan() {
+			return
+		}
+		choice := strings.TrimSpace(scanner.Text())
 
-	switch choice {
-	case "1":
-		showExamples(res)
-	case "2":
-		runCommand(res, scanner)
-	case "3":
-		// Just exit the menu, which effectively does nothing as we loop back
-		fmt.Println("Exiting menu.")
-	case "4":
-		fmt.Println("Enter new search query:")
-        // Loop will continue naturally
-	case "0":
-		fmt.Println("Cancelled.")
-	default:
-		fmt.Println("Invalid choice.")
+		switch choice {
+		case "1":
+			showExamples(res)
+			// Loop continues to let user run it after seeing examples
+			fmt.Println("\nPress Enter to return to menu...")
+			scanner.Scan()
+		case "2":
+			runCommand(res, scanner)
+			return // Exit after running (usually what you want)
+		case "3":
+			fmt.Printf("\nCommand:\n\n    %s\n\n(Select and copy above)\n", res.Command)
+			return
+		case "4":
+			return // Returns to main loop (new search)
+		case "0":
+			return // Returns to main loop
+		default:
+			fmt.Println("Invalid choice.")
+		}
 	}
-    fmt.Println("")
 }
 
 func showExamples(res *intent.DetectionResult) {
-    fmt.Println("\n--- Examples / Usage ---")
-    // Simple fallback: try 'man' on the command name (usually first word)
-    parts := strings.Fields(res.Command)
-    if len(parts) > 0 {
-        // Run man -f cmdName or just man cmdName?
-        // Let's try displaying the description again or if we have usage from Layer 4
-        fmt.Println(res.Description)
-        
-        // If Layer 2 or Layer 4 didn't give full usage, maybe try man
-        if res.Source == "man" || res.Source == "static" {
-             // Try a quick man lookup snippet?
-             // For now just re-iterating description is safe.
-             // Ideally we'd pull "EXAMPLES" section from man.
-        }
-    }
+	fmt.Println("\n--- Examples / Usage ---")
+	fmt.Printf("Command: %s\n", res.Command)
+	fmt.Printf("Details: %s\n", res.Description)
+
+	// If it's a man page result, we could technically try to fetch more sections.
+	// For now, let's just show helpful hints.
+	if strings.HasPrefix(res.Command, "tar") {
+		fmt.Println("\nTip: 'tar -xzvf' extracts .tar.gz files.")
+		fmt.Println("     -x: extract, -z: gzip, -v: verbose, -f: file")
+	}
 }
 
 func runCommand(res *intent.DetectionResult, scanner *bufio.Scanner) {
-    fmt.Printf("\nRun: %s [y/N/edit]: ", res.Command)
-    if !scanner.Scan() {
-        return
-    }
-    ans := strings.ToLower(strings.TrimSpace(scanner.Text()))
-    
-    finalCmd := res.Command
-    
-    if ans == "edit" || ans == "e" {
-        fmt.Print("Edit command: ")
-        if scanner.Scan() {
-             finalCmd = strings.TrimSpace(scanner.Text())
-        }
-    } else if ans != "y" && ans != "yes" {
-        fmt.Println("Aborted.")
-        return
-    }
-    
-    // Execute safely
-    parts := strings.Fields(finalCmd)
-    if len(parts) == 0 {
-        return
-    }
-    
-    cmd := safeexec.Command(parts[0], parts[1:]...)
-    cmd.Stdin = os.Stdin
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    
-    if err := cmd.Run(); err != nil {
-        fmt.Printf("Error executing command: %v\n", err)
-    }
+	fmt.Printf("\nRun: %s [y/N/edit]: ", res.Command)
+	if !scanner.Scan() {
+		return
+	}
+	ans := strings.ToLower(strings.TrimSpace(scanner.Text()))
+
+	finalCmd := res.Command
+
+	if ans == "edit" || ans == "e" {
+		fmt.Print("Edit command: ")
+		if scanner.Scan() {
+			finalCmd = strings.TrimSpace(scanner.Text())
+		}
+	} else if ans != "y" && ans != "yes" {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	// Execute safely
+	parts := strings.Fields(finalCmd)
+	if len(parts) == 0 {
+		return
+	}
+
+	cmd := safeexec.Command(parts[0], parts[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Error executing command: %v\n", err)
+	}
 }

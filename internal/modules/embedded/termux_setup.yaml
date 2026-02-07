@@ -40,12 +40,12 @@ flows:
         title: "Update & Upgrade"
         steps:
           - type: command
-            command: pkg update -y
+            command: DEBIAN_FRONTEND=noninteractive pkg update -y
             description: Updating package lists
             show_output: true
           
           - type: command
-            command: pkg upgrade -y
+            command: DEBIAN_FRONTEND=noninteractive DEBIAN_PRIORITY=critical pkg upgrade -y
             description: Upgrading packages
             show_output: true
 
@@ -85,14 +85,14 @@ flows:
             content: "Installing essential tools: git, gh, curl, wget, man, openssh, zip, unzip"
           
           - type: command
-            command: pkg install -y git gh curl wget man openssh zip unzip
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y git gh curl wget man openssh zip unzip
             show_output: true
 
       - type: section
         title: "Install Zsh & Themes"
         steps:
           - type: command
-            command: pkg install -y zsh
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y zsh
             description: Installing Zsh shell
             show_output: true
           
@@ -137,7 +137,7 @@ flows:
         title: "Configure Vim"
         steps:
           - type: command
-            command: pkg install -y vim
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y vim
             description: Installing Vim
             show_output: true
           
@@ -162,7 +162,7 @@ flows:
             content: "Installing Python..."
           
           - type: command
-            command: pkg install -y python
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y python
             show_output: true
           
           - type: label
@@ -245,7 +245,7 @@ flows:
             on_no: skip_php
           
           - type: command
-            command: pkg install -y php
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y php
             description: Installing PHP
             show_output: true
           
@@ -262,7 +262,7 @@ flows:
             on_no: skip_node
           
           - type: command
-            command: pkg install -y nodejs
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y nodejs
             description: Installing Node.js
             show_output: true
           
@@ -279,7 +279,7 @@ flows:
             on_no: skip_go
           
           - type: command
-            command: pkg install -y golang
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y golang
             description: Installing Golang
             show_output: true
           
@@ -296,7 +296,7 @@ flows:
             on_no: skip_python
           
           - type: command
-            command: pkg install -y python
+            command: DEBIAN_FRONTEND=noninteractive pkg install -y python
             description: Installing Python
             show_output: true
           

@@ -109,6 +109,10 @@ fi
 chmod +x "$BIN_NAME"
 mv "$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
 
+# Create .clio directory structure
+CLIO_DIR="$HOME/.clio"
+mkdir -p "$CLIO_DIR/modules"
+
 echo "✅ Successfully installed $BIN_NAME to $INSTALL_DIR"
 
 # Check PATH

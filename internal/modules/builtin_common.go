@@ -9,6 +9,11 @@ import (
 
 // InitBuiltinModules loads built-in modules from disk into the database
 func InitBuiltinModules() error {
+	// First, ensure embedded modules are extracted
+	if err := extractEmbeddedModules(); err != nil {
+		fmt.Printf("Warning: Failed to extract embedded modules: %v\n", err)
+	}
+
 	// Get the executable's directory or use current working directory
 	modulesDir := "./modules"
 
@@ -92,4 +97,43 @@ func EnsureBuiltinModulesLoaded() error {
 
 	// Load builtin modules
 	return InitBuiltinModules()
+}
+
+// extractEmbeddedModules writes embedded YAML modules to ~/.clio/modules/
+func extractEmbeddedModules() error {
+	// Skip if no embedded modules on this platform
+	if !hasEmbeddedModules() || termuxSetupYAML == "" {
+		return nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	modulesDir := filepath.Join(home, ".clio", "modules")
+	if err := os.MkdirAll(modulesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create modules directory: %w", err)
+	}
+
+	// Extract termux_setup.yaml
+	termuxSetupPath := filepath.Join(modulesDir, "termux_setup.yaml")
+
+	// Only write if it doesn't exist or is outdated
+	shouldWrite := true
+	if _, err := os.Stat(termuxSetupPath); err == nil {
+		// File exists, check if content matches
+		existing, err := os.ReadFile(termuxSetupPath)
+		if err == nil && string(existing) == termuxSetupYAML {
+			shouldWrite = false
+		}
+	}
+
+	if shouldWrite {
+		if err := os.WriteFile(termuxSetupPath, []byte(termuxSetupYAML), 0644); err != nil {
+			return fmt.Errorf("failed to write termux_setup.yaml: %w", err)
+		}
+	}
+
+	return nil
 }

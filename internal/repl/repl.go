@@ -18,6 +18,11 @@ func Run() {
 	fmt.Println("CLIPilot Client (Offline First) - Type 'exit' to quit.")
 	fmt.Println("-----------------------------------------------------")
 
+	// Initialize builtin modules (extracts embedded YAML and loads into DB)
+	if err := modules.EnsureBuiltinModulesLoaded(); err != nil {
+		fmt.Printf("Warning: Failed to load builtin modules: %v\n", err)
+	}
+
 	// Check if on Termux and setup is needed
 	if setup.IsTermux() && !setup.IsSetupComplete() {
 		fmt.Println("\n💡 First time on Termux?")

@@ -1,4 +1,3 @@
-package modules
 //go:build !linux
 
 package modules

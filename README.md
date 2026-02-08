@@ -32,6 +32,24 @@ If you prefer to build it yourself:
 go build -ldflags="-s -w" -o clio ./cmd/clio
 ```
 
+### Uninstall
+To remove Clio from your system:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/uninstall.sh | bash
+```
+
+Or if you have the repository:
+
+```bash
+./uninstall.sh
+```
+
+The uninstall script will:
+- Remove the Clio binary
+- Optionally remove configuration directory (`~/.clio`) and modules
+- Optionally remove database (`~/.clio.db`) with cached data
+
 ## Usage
 
 Run the binary directly:

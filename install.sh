@@ -122,3 +122,8 @@ case ":$PATH:" in
        echo "    export PATH=\"$INSTALL_DIR:\$PATH\""
        ;;
 esac
+
+echo ""
+echo "To uninstall later, run:"
+echo "  curl -sfL https://raw.githubusercontent.com/$OWNER/$REPO/main/uninstall.sh | bash"
+echo ""

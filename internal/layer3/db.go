@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	_ "modernc.org/sqlite" // CGO-free SQLite
 )
@@ -66,7 +67,14 @@ func initSchema(db *sql.DB) error {
 		description TEXT,
 		tags TEXT,
 		version TEXT,
-		content TEXT
+		content TEXT,
+		checksum TEXT,
+		synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	
+	CREATE TABLE IF NOT EXISTS sync_metadata (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		last_sync_timestamp TIMESTAMP
 	);
 	`
 	_, err := db.Exec(query)
@@ -76,7 +84,7 @@ func initSchema(db *sql.DB) error {
 	return nil
 }
 
-// UpsertModule inserts or updates a module in the database
+// UpsertModule inserts or updates a module in the database (without checksum)
 func UpsertModule(modID, name, desc, tags, version, content string) error {
 	db, err := GetDB()
 	if err != nil {
@@ -94,6 +102,77 @@ func UpsertModule(modID, name, desc, tags, version, content string) error {
         content=excluded.content;
     `
 	_, err = db.Exec(query, modID, name, desc, tags, version, content)
+	return err
+}
+
+// UpsertModuleWithChecksum inserts or updates a module with checksum tracking
+func UpsertModuleWithChecksum(modID, name, desc, tags, version, content, checksum string) error {
+	db, err := GetDB()
+	if err != nil {
+		return err
+	}
+
+	query := `
+    INSERT INTO modules (module_id, name, description, tags, version, content, checksum, synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(module_id) DO UPDATE SET
+        name=excluded.name,
+        description=excluded.description,
+        tags=excluded.tags,
+        version=excluded.version,
+        content=excluded.content,
+        checksum=excluded.checksum,
+        synced_at=CURRENT_TIMESTAMP;
+    `
+	_, err = db.Exec(query, modID, name, desc, tags, version, content, checksum)
+	return err
+}
+
+// GetModuleChecksum returns the stored checksum for a module
+func GetModuleChecksum(moduleID string) (string, error) {
+	db, err := GetDB()
+	if err != nil {
+		return "", err
+	}
+
+	var checksum sql.NullString
+	err = db.QueryRow("SELECT checksum FROM modules WHERE module_id = ?", moduleID).Scan(&checksum)
+	if err != nil {
+		return "", err
+	}
+	if !checksum.Valid {
+		return "", nil
+	}
+	return checksum.String, nil
+}
+
+// GetLastSyncTimestamp returns when modules were last synced
+func GetLastSyncTimestamp() (time.Time, error) {
+	db, err := GetDB()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var timestamp sql.NullTime
+	err = db.QueryRow("SELECT last_sync_timestamp FROM sync_metadata WHERE id = 1").Scan(&timestamp)
+	if err == sql.ErrNoRows || !timestamp.Valid {
+		return time.Time{}, nil // Never synced before
+	}
+	return timestamp.Time, err
+}
+
+// SaveLastSyncTimestamp updates the last sync time
+func SaveLastSyncTimestamp(t time.Time) error {
+	db, err := GetDB()
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`
+		INSERT INTO sync_metadata (id, last_sync_timestamp) VALUES (1, ?)
+		ON CONFLICT(id) DO UPDATE SET last_sync_timestamp=excluded.last_sync_timestamp
+	`, t)
+
 	return err
 }
 

@@ -18,6 +18,12 @@ Clio is a lightweight, offline-first command-line assistant designed for Termux 
 ### Automatic Install (Recommended)
 You can install the latest binary automatically using curl. This script detects your OS/Arch (including Termux) and downloads the correct binary.
 
+**Primary method (recommended):**
+```bash
+curl -fsSL https://clipilot.themobileprof.com/clio | sh
+```
+
+**Fallback method (if registry is unavailable):**
 ```bash
 curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
 ```
@@ -102,10 +108,28 @@ To fetch the latest automation modules from the central repository:
 
 ```text
 >> sync
-🔄 Syncing modules from remote...
-  Processing archive_directory.yaml...
+🔄 Syncing modules from registry...
+  Downloading org.themobileprof.archive_directory...
 ✅ Sync complete. Updated 66 modules.
 ```
+
+Clio uses delta sync - only changed modules are downloaded, making subsequent syncs much faster. If the registry is unavailable, Clio automatically falls back to GitHub.
+
+### Configuration
+Clio can be configured via `~/.clio/config.yaml`:
+
+```yaml
+# Registry URL for module sync
+registry_url: https://clipilot.themobileprof.com
+
+# How long to cache module list (default: 24h)
+cache_ttl: 24h
+
+# Auto-sync interval (default: 168h / 7 days)
+sync_interval: 168h
+```
+
+If the config file doesn't exist, Clio uses sensible defaults.
 
 ### Pipe Mode
 You can also pipe queries directly:

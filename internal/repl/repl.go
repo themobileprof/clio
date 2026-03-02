@@ -101,11 +101,10 @@ func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
 		fmt.Println("What would you like to do?")
 		fmt.Println("  1) Show examples and usage")
 		fmt.Println("  2) Run the command")
-		fmt.Println("  3) Copy command to clipboard (Print only)")
-		fmt.Println("  4) Search for another command")
+		fmt.Println("  3) Search for another command")
 		fmt.Println("  0) Cancel")
 		fmt.Println("")
-		fmt.Print("Choice [1-4, 0]: ")
+		fmt.Print("Choice [1-3, 0]: ")
 
 		if !scanner.Scan() {
 			return
@@ -122,9 +121,6 @@ func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
 			runCommand(res, scanner)
 			return // Exit after running (usually what you want)
 		case "3":
-			fmt.Printf("\nCommand:\n\n    %s\n\n(Select and copy above)\n", res.Command)
-			return
-		case "4":
 			return // Returns to main loop (new search)
 		case "0":
 			return // Returns to main loop

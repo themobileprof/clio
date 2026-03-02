@@ -112,18 +112,17 @@ Purpose : List all files including hidden ones with detailed information
 What would you like to do?
   1) Show examples and usage
   2) Run the command
-  3) Copy command to clipboard (Print only)
-  4) Search for another command
+  3) Search for another command
   0) Cancel
 
-Choice [1-4, 0]: 
+Choice [1-3, 0]: 
 ```
 
 **Navigation walkthrough:**
 
 **Choice 1 - Examples:**
 ```
-Choice [1-4, 0]: 1
+Choice [1-3, 0]: 1
 
 --- Examples / Usage ---
 Command: ls -la
@@ -140,7 +139,7 @@ Press Enter to return to menu...
 
 **Choice 2 - Run command:**
 ```
-Choice [1-4, 0]: 2
+Choice [1-3, 0]: 2
 
 Run: ls -la [y/N/edit]: y
 
@@ -148,19 +147,7 @@ Run: ls -la [y/N/edit]: y
 ```
 *Explain: "It confirms before running. Type 'y' to execute, 'N' to cancel, or 'edit' to modify before running."*
 
-**Choice 3 - Copy only:**
-```
-Choice [1-4, 0]: 3
-
-Command:
-
-    ls -la
-
-(Select and copy above)
-```
-*Explain: "Perfect for when you want to paste the command somewhere else or study it first."*
-
-**Choice 4 - New search:**
+**Choice 3 - New search:**
 *Explain: "Takes you back to the main prompt to search for something else."*
 
 #### **Example 2: Natural Language Variations**
@@ -354,7 +341,10 @@ Purpose : Watch a file as new lines are added (perfect for logs)
 Purpose : Copy files or directories
 
 What would you like to do?
+  1) Show examples and usage
   2) Run the command
+  3) Search for another command
+  0) Cancel
 
 Choice: 2
 
@@ -544,7 +534,7 @@ source ~/.bashrc
 **Solution:**
 - Be more specific: "find files" vs "list files"
 - Context matters: "search for files named test" is clearer
-- Try rephrasing: Choice 4 takes you back to try again
+- Try rephrasing: Choice 3 takes you back to try again
 
 ---
 

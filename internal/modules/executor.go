@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"text/template"
 
@@ -230,12 +229,11 @@ func executeStep(step *Step, ctx *ExecutionContext, sectionNum, totalSections in
 
 		cmdStr := expandTemplate(step.Command, ctx.Variables)
 
-		var cmd *exec.Cmd
+		// Always use safeexec.Command to avoid SIGSYS on Termux/Android
+		cmd := safeexec.Command("sh", "-c", cmdStr)
+
 		if step.Interactive {
-			cmd = exec.Command("sh", "-c", cmdStr)
 			cmd.Stdin = os.Stdin
-		} else {
-			cmd = safeexec.Command("sh", "-c", cmdStr)
 		}
 
 		if step.ShowOutput || step.Interactive {

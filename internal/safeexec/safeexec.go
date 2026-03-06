@@ -34,22 +34,6 @@ func LookPath(file string) (string, error) {
 	return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
 }
 
-// Command is a safe wrapper around exec.Command that ensures the path is resolved safely
-func Command(name string, arg ...string) *exec.Cmd {
-	// We don't change the behavior of exec.Command itself (it calls LookPath internally),
-    // but better to resolve it first to fail early or ensure validity if we were replacing
-    // the internal lookup. However, exec.Command uses exec.LookPath.
-    // Since we can't monkeypatch exec.LookPath, users should use
-    // safeexec.LookPath explicitly or this helper which resolves the path first.
-
-    // If name is found via safe lookup, use absolute path.
-    // If not found, let exec.Command try (it might fail with the syscall issue, but at least we tried).
-    if path, err := LookPath(name); err == nil {
-        return exec.Command(path, arg...)
-    }
-	return exec.Command(name, arg...)
-}
-
 func findExecutable(file string) error {
 	d, err := os.Stat(file)
 	if err != nil {

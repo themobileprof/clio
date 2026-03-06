@@ -1,28 +1,76 @@
 # SIGSYS Fix for Termux - Summary
 
+# SIGSYS Fix for Termux - Summary
+
 ## Problem Diagnosed
 
-The SIGSYS ("bad system call") error on Termux was caused by:
+The SIGSYS ("bad system call") error on Termux is caused by:
 
-1. **Go 1.24 introduced `pidfd_open` syscall** - Used by Go runtime for process management
-2. **Android's seccomp filters block newer syscalls** - Including `pidfd_open`, `clone3`, `faccessat2`
-3. **Architecture mismatch** - amd64 toolchain being used instead of ARM on Termux devices
-4. **Dependency constraint** - modernc.org/sqlite@v1.44.3 requires Go 1.24+
+1. **Go 1.24 introduced `pidfd_open` syscall** (#434) - Used by Go runtime for process management
+2. **Android's seccomp filters return SIGSYS** instead of ENOSYS - This kills the process
+3. **Go runtime doesn't handle SIGSYS gracefully** - Crashes during syscall probing
+4. **Happens before userspace code runs** - Cannot be intercepted or mitigated in application code
+
+### The Call Chain
+
+```
+os/exec.Cmd.Start()
+  → ensurePidfd()        // Go runtime probes for pidfd_open
+    → syscall(434)        // pidfd_open syscall
+      → SIGSYS            // Android seccomp blocks it
+        → CRASH ❌         // Go doesn't expect SIGSYS during probing
+```
+
+### Why SIGSYS Instead of ENOSYS?
+
+- **ENOSYS** = "Not implemented" → Go falls back gracefully ✅
+- **SIGSYS** = "Blocked by security policy" → Hard crash ❌
+
+Android uses seccomp to enforce security boundaries. Go 1.24's runtime assumes syscall probes will return ENOSYS, not SIGSYS.
 
 ## Changes Made
 
-### 1. Syscall Compatibility Layer (Primary Fix)
-**Files:** `internal/safeexec/safeexec_linux.go`, safeexec_other.go``
-- **Added `Cloneflags = 0`** to force legacy `clone()` instead of `clone3()`
-- **Custom `LookPath`** implementation to avoid `faccessat2`
-- **Platform-specific builds** using Go build tags for Linux vs others
-- **Why this works:** By setting  `SysProcAttr.Cloneflags = 0`, we tell Go to use older syscalls that Android allows
+### 1. Build Toolchain Override (Primary Fix)
+**File:** `build-termux.sh`
+- **Added:** `export GOTOOLCHAIN=go1.23.8`
+- **Why:** Go 1.23 doesn't use `pidfd_open`, avoiding the blocked syscall entirely
+- **Impact:** Termux builds now use Go 1.23.8 automatically
 
-### 2. Kept Go 1.24
+**Example:**
+```bash
+GOTOOLCHAIN=go1.23.8 go build ./cmd/clio  # Uses Go 1.23 for this build only
+```
+
+### 2. Kept Go 1.24 for Development
 **File:** `go.mod`
-- **Version:** `go 1.24.0` with `toolchain go1.24.3`
-- **Why:** The sqlite dependency requires Go 1.24+
-- **Mitigation:** Use `safeexec` wrapper to avoid problematic syscalls at runtime
+- **Version:** `go 1.24` with `toolchain go1.24.3`
+- **Why:** Works fine on Linux/Mac, and dependencies benefit from Go 1.24
+- **Strategy:** Use GOTOOLCHAIN override for Termux-specific builds only
+
+### 3. Syscall Compatibility Layer (Partial Mitigation)
+**Files:** `internal/safeexec/safeexec_linux.go`, `safeexec_other.go`
+- **Added `Cloneflags = 0`** - Forces legacy `clone()` instead of `clone3()` ✅
+- **Custom `LookPath`** - Avoids `faccessat2` syscall ✅
+- **Platform-specific builds** - Using Go build tags ✅
+
+**What this fixes:**
+- ✅ `clone3` - Handled by `SysProcAttr.Cloneflags = 0`
+- ✅ `faccessat2` - Handled by custom `LookPath`
+
+**What this CANNOT fix:**
+- ❌ `pidfd_open` - Happens in Go runtime before our code runs
+
+### 4. Unified Command Execution
+**File:** `internal/modules/executor.go`
+- All commands now use `safeexec.Command` consistently
+- Helps with `clone3` and `faccessat2`, but not `pidfd_open`
+
+### 5. Updated Documentation
+**Files:** `README.md`, `docs/TERMUX_BUILD_GUIDE.md`, `SIGSYS_FIX_SUMMARY.md`
+- Accurate technical explanation of the issue
+- Clear instructions for using GOTOOLCHAIN
+- Honest about what can and cannot be fixed in userspace
+
 
 ### 3. Unified Command Execution
 **File:** `internal/modules/executor.go`

@@ -1,8 +1,8 @@
 # Building Clio for Termux/Android
 
-## The SIGSYS Problem
+## The SIGSYS Problem Explained
 
-When building Go programs for Android/Termux, you may encounter:
+When running Go programs on Android/Termux with Go 1.24+, you may encounter:
 
 ```
 SIGSYS: bad system call
@@ -10,21 +10,78 @@ PC=0x1c280 m=2 sigcode=1
 internal/syscall/unix.PidFDOpen
 ```
 
-This happens because:
+### What's Actually Happening
 
-1. **Go 1.24+ uses newer syscalls** like `pidfd_open`, `clone3`, `faccessat2`
-2. **Android's seccomp filters block these syscalls** on many devices
-3. **Architecture mismatches** (amd64 toolchains on ARM devices) cause additional issues
+**Important clarification**: This crash happens during **module execution** (when spawning subprocesses), NOT during runtime initialization.
 
-## Solution
+✅ **Works fine**: Basic Clio queries like "extract tar file"
+❌ **Crashes**: Running modules like `setup` that execute shell commands
+
+### The Call Chain
+
+```
+User runs: clio >> setup
+  → ExecuteModule()
+    → executeStep() with type="command"
+      → safeexec.Command("sh", "-c", cmd)
+        → os/exec.Cmd.Start()
+          → Go 1.24 tries pidfd_open(434)
+            → Android seccomp returns SIGSYS
+              → CRASH ❌
+```
+
+### The Key Difference
+
+- **ENOSYS** ("not implemented") → Go falls back gracefully ✅
+- **SIGSYS** ("blocked by security policy") → Crash ❌
+
+Android uses seccomp to block newer syscalls for security. Go 1.24 doesn't expect SIGSYS during process spawning.
+
+### Why This Happens
+
+1. **Go 1.24 uses newer syscalls**: `pidfd_open`, `clone3`, `faccessat2`
+2. **Android's seccomp filters block these** on many devices for security
+3. **Crash during subprocess spawning**: When modules execute commands
+4. **Architecture mismatches**: Cross-compilation issues compound the problem
+
+### The Solution: Runtime Mitigation
+
+Since the crash happens during **subprocess spawning** (not runtime init), we CAN fix it in application code:
+
+```go
+// internal/safeexec/safeexec_linux.go
+func Command(name string, arg ...string) *exec.Cmd {
+    cmd := exec.Command(name, arg...)
+    
+    if cmd.SysProcAttr == nil {
+        cmd.SysProcAttr = &syscall.SysProcAttr{}
+    }
+    
+    // Disable pidfd_open - Go 1.24 won't try to use it
+    cmd.SysProcAttr.PidFD = nil
+    
+    // Force legacy clone() instead of clone3()
+    cmd.SysProcAttr.Cloneflags = 0
+    
+    return cmd
+}
+```
+
+**What this fixes:**
+- ✅ `pidfd_open` - Disabled by setting `PidFD = nil`
+- ✅ `clone3` - Forced to legacy via `Cloneflags = 0`  
+- ✅ `faccessat2` - Custom `LookPath` avoids it
+
+**Why this works:**
+Module commands go through our `safeexec.Command()` wrapper, which configures `SysProcAttr` before Go tries any syscalls. This is different from runtime initialization where we have no control.
+
+## Building for Termux
 
 ### Option 1: Use Pre-Built Binaries (Recommended)
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
 ```
-
-The install script automatically detects Termux and downloads the correct ARM binary.
 
 ### Option 2: Build on Termux
 
@@ -51,45 +108,79 @@ cp clio $PREFIX/bin/
 
 **For ARM64 (most Termux devices):**
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
+GOTOOLCHAIN=go1.23.8 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+  go build -ldflags="-s -w" -o clio-arm64 ./cmd/clio
 ```
 
 **For ARM (32-bit devices):**
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -o clio-arm ./cmd/clio
+GOTOOLCHAIN=go1.23.8 CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
+  go build -ldflags="-s -w" -o clio-arm ./cmd/clio
 ```
 
 **Transfer to device:**
 ```bash
+# Via adb
 adb push clio-arm64 /data/data/com.termux/files/usr/bin/clio
 adb shell chmod +x /data/data/com.termux/files/usr/bin/clio
+
+# Or via Termux over SSH
+scp clio-arm64 termux@device:/data/data/com.termux/files/usr/bin/clio
 ```
+
+### Option 4: Temporary Fix (Not Recommended)
+
+If you control the container/device seccomp policy:
+
+```bash
+# Disable seccomp entirely (DANGEROUS)
+docker run --security-opt seccomp=unconfined ...
+
+# Or add pidfd_open (434) to your seccomp allowlist
+```
+
+**Warning:** This weakens Android's security model. Only do this if you understand the implications.
 
 ## Technical Details
 
-### Syscall Compatibility
+### Why Go 1.23 Instead of 1.24?
 
-Clio implements several mitigations in `internal/safeexec/`:
+Go 1.23 doesn't use `pidfd_open`, avoiding the blocked syscall entirely:
 
-1. **Custom LookPath**: Avoids `faccessat2` by manually checking file permissions
-2. **Cloneflags = 0**: Forces use of legacy `clone()` instead of `clone3()`
-3. **PidFD = false**: Disables `pidfd_open` usage (Go 1.24+)
-4. **Go 1.23**: Uses Go version before `pidfd_open` was introduced
+- ✅ No `pidfd_open` calls
+- ✅ Still maintained (1.23.8 has security updates)
+- ✅ Compatible with Android 7+ (Termux minimum)
+- ✅ Works with all Clio dependencies
 
-### Why Go 1.24 with Safeexec?
+### Why Not Downgrade the Project?
 
-Go 1.24 introduced `pidfd_open` for better process management, but Android's seccomp filters block this syscall. The solution:
+Clio's `go.mod` specifies Go 1.24:
 
-- ✅ **Keep Go 1.24** - Required by modernc.org/sqlite dependency
-- ✅ **Runtime mitigation** - `safeexec` wrapper sets `Cloneflags = 0` to force older syscalls
-- ✅ **Custom LookPath** - Avoids `faccessat2` by manually checking permissions
-- ✅ **Build tags** - Platform-specific code for Linux vs others
+```go
+go 1.24
 
-This approach:
-- Works with current dependencies
-- Doesn't require Go version downgrade
-- Handles syscall blocking at runtime
-- Compatible with Android 7+ (Termux minimum)
+toolchain go1.24.3
+```
+
+**Reasons:**
+1. **Development on Linux/Mac works fine** with Go 1.24
+2. **Dependencies benefit** from Go 1.24 improvements
+3. **Only Termux has the issue** - project-wide downgrade is overkill
+4. **GOTOOLCHAIN handles it cleanly** for Termux-specific builds
+
+### The GOTOOLCHAIN Solution
+
+Go 1.21+ supports toolchain selection via `GOTOOLCHAIN` environment variable:
+
+```bash
+GOTOOLCHAIN=go1.23.8 go build ./cmd/clio
+```
+
+This overrides the `go.mod` toolchain **only for that build**, allowing:
+- Development with Go 1.24 on Linux/Mac
+- Production builds with Go 1.23 for Termux
+- No project-wide compromises
+
 
 ### CGO Disabled
 

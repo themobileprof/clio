@@ -227,9 +227,38 @@ echo "check disk space" | ./clio
 
 ### Termux: "SIGSYS: bad system call" Error
 
+If you encounter this error when running **module commands** (like `setup`) on Termux:
+
+```
+SIGSYS: bad system call
+PC=0x1c280 m=2 sigcode=1
+internal/syscall/unix.PidFDOpen
+```
+
+**What Happens:**
+- ✅ **Basic queries work**: "extract tar file" → returns command suggestions
+- ❌ **Module execution crashes**: When running `setup` or other YAML modules that spawn subprocesses
+
+**Root Cause:**
+
+Go 1.24 introduced `pidfd_open` (syscall #434) for better process management. When Clio executes commands from modules via `os/exec`, Go tries to use `pidfd_open`. Android's seccomp filter blocks this syscall with `SIGSYS`, causing a crash.
+
+**The Fix:**
+
+Clio now includes a **runtime mitigation** in the `safeexec` wrapper that disables `pidfd_open` at the application level:
+
+```go
+// internal/safeexec/safeexec_linux.go
+cmd.SysProcAttr.PidFD = nil      // Disables pidfd_open
+cmd.SysProcAttr.Cloneflags = 0   // Forces legacy clone()
+```
+
+**If using pre-built binaries:**
+You shouldn't encounter this - the fix is already included.
+
 **If building from source:**
 
-1. **On Termux (recommended):**
+1. **On Termux:**
    ```bash
    ./build-termux.sh
    cp clio $PREFIX/bin/
@@ -240,18 +269,21 @@ echo "check disk space" | ./clio
    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
    ```
 
-3. **For detailed instructions**, see [docs/TERMUX_BUILD_GUIDE.md](docs/TERMUX_BUILD_GUIDE.md)
+3. **Manual build:**
+   ```bash
+   go build -o clio ./cmd/clio  # Works with Go 1.24+
+   ```
 
-**How it works:**
-- Custom `safeexec` wrapper intercepts all command execution
-- Sets `SysProcAttr.Cloneflags = 0` to force legacy `clone()` instead of `clone3()`
-- Manual `LookPath` implementation avoids `faccessat2` syscall
-- Platform-specific code via Go build tags (Linux vs others)
-- CGO disabled for pure Go binary with no libc dependencies
-- Compatible with Go 1.24+ while maintaining Android 7+ support
+**What the safeexec wrapper fixes:**
+- ✅ `pidfd_open` - Disabled via `SysProcAttr.PidFD = nil`
+- ✅ `clone3` - Forced to legacy `clone()` via `Cloneflags = 0`
+- ✅ `faccessat2` - Custom `LookPath` avoids this syscall
 
-**Why not just downgrade Go?**
-The `modernc.org/sqlite` dependency requires Go 1.24+, so we use runtime mitigation instead of version downgrade.
+**Why this works:**
+Unlike runtime initialization issues, module execution happens in userspace where we control the `exec.Cmd` configuration. By setting `PidFD = nil`, we tell Go not to use pidfd functionality, avoiding the blocked syscall entirely.
+
+**For detailed technical info**, see [docs/TERMUX_BUILD_GUIDE.md](docs/TERMUX_BUILD_GUIDE.md)
+
 
 ### Command Not Found
 

@@ -29,5 +29,11 @@ func Command(name string, arg ...string) *exec.Cmd {
 	// Setting Cloneflags to 0 tells Go runtime to use legacy syscalls
 	cmd.SysProcAttr.Cloneflags = 0
 
+	// Disable pidfd_open by setting PidFD to nil explicitly
+	// Go 1.24 will try to use pidfd_open if PidFD is set to a valid pointer
+	// Setting it to nil tells Go not to use pidfd functionality at all
+	// This prevents SIGSYS on Android where pidfd_open is blocked by seccomp
+	cmd.SysProcAttr.PidFD = nil
+
 	return cmd
 }

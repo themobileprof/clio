@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build script for Termux/Android to avoid SIGSYS errors
-# This ensures proper ARM architecture and disables newer syscalls
+# Build script for Termux/Android
+# Ensures proper ARM architecture and compatibility
 
 set -e
 
@@ -20,17 +20,17 @@ case "$ARCH" in
 esac
 
 echo "Target architecture: $GOARCH"
+echo ""
+echo "Note: Clio includes safeexec wrapper to avoid Android seccomp issues"
+echo "      (Disables pidfd_open, clone3, faccessat2 syscalls)"
+echo ""
 
-# Build with specific flags to avoid newer syscalls
-# - Disable CGO to avoid libc dependencies
-# - Set GOOS=linux explicitly
-#- Disable newer syscalls via build tags
+# Build with Android compatibility
 export CGO_ENABLED=0
 export GOOS=linux
 export GOARCH="$GOARCH"
 
-# Build with tags to disable problematic features
-# The syscall compatibility is handled by safeexec package
+# Build
 go build -v \
     -ldflags="-s -w" \
     -o clio \
@@ -42,6 +42,7 @@ if [ ! -f "clio" ]; then
     exit 1
 fi
 
+echo ""
 echo "✅ Build successful: $(pwd)/clio"
 echo "   Architecture: $GOARCH"
 echo "   Size: $(du -h clio | cut -f1)"

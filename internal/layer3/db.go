@@ -68,6 +68,7 @@ func initSchema(db *sql.DB) error {
 		tags TEXT,
 		version TEXT,
 		content TEXT,
+		bash_script TEXT,
 		checksum TEXT,
 		synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
@@ -85,46 +86,48 @@ func initSchema(db *sql.DB) error {
 }
 
 // UpsertModule inserts or updates a module in the database (without checksum)
-func UpsertModule(modID, name, desc, tags, version, content string) error {
+func UpsertModule(modID, name, desc, tags, version, content, bashScript string) error {
 	db, err := GetDB()
 	if err != nil {
 		return err
 	}
 
 	query := `
-    INSERT INTO modules (module_id, name, description, tags, version, content)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(module_id) DO UPDATE SET
-        name=excluded.name,
-        description=excluded.description,
-        tags=excluded.tags,
-        version=excluded.version,
-        content=excluded.content;
-    `
-	_, err = db.Exec(query, modID, name, desc, tags, version, content)
-	return err
-}
-
-// UpsertModuleWithChecksum inserts or updates a module with checksum tracking
-func UpsertModuleWithChecksum(modID, name, desc, tags, version, content, checksum string) error {
-	db, err := GetDB()
-	if err != nil {
-		return err
-	}
-
-	query := `
-    INSERT INTO modules (module_id, name, description, tags, version, content, checksum, synced_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO modules (module_id, name, description, tags, version, content, bash_script)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(module_id) DO UPDATE SET
         name=excluded.name,
         description=excluded.description,
         tags=excluded.tags,
         version=excluded.version,
         content=excluded.content,
+        bash_script=excluded.bash_script;
+    `
+	_, err = db.Exec(query, modID, name, desc, tags, version, content, bashScript)
+	return err
+}
+
+// UpsertModuleWithChecksum inserts or updates a module with checksum tracking
+func UpsertModuleWithChecksum(modID, name, desc, tags, version, content, bashScript, checksum string) error {
+	db, err := GetDB()
+	if err != nil {
+		return err
+	}
+
+	query := `
+    INSERT INTO modules (module_id, name, description, tags, version, content, bash_script, checksum, synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(module_id) DO UPDATE SET
+        name=excluded.name,
+        description=excluded.description,
+        tags=excluded.tags,
+        version=excluded.version,
+        content=excluded.content,
+        bash_script=excluded.bash_script,
         checksum=excluded.checksum,
         synced_at=CURRENT_TIMESTAMP;
     `
-	_, err = db.Exec(query, modID, name, desc, tags, version, content, checksum)
+	_, err = db.Exec(query, modID, name, desc, tags, version, content, bashScript, checksum)
 	return err
 }
 

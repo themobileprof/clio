@@ -75,7 +75,14 @@ func InitBuiltinModules() error {
 			}
 		}
 
-		if err := layer3.UpsertModule(module.ID, module.Name, module.Description, tags, module.Version, string(content)); err != nil {
+		// Generate bash-friendly script for Termux
+		bashScript, err := convertYAMLToBashScript(string(content))
+		if err != nil {
+			fmt.Printf("Warning: Failed to generate bash script for %s: %v\n", entry.Name(), err)
+			bashScript = "" // Store empty on error
+		}
+
+		if err := layer3.UpsertModule(module.ID, module.Name, module.Description, tags, module.Version, string(content), bashScript); err != nil {
 			fmt.Printf("Warning: Failed to insert %s: %v\n", entry.Name(), err)
 			continue
 		}

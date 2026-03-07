@@ -2,7 +2,7 @@
 
 ## The SIGSYS Problem Explained
 
-When running Go programs on Android/Termux with Go 1.24+, you may encounter:
+When running Go 1.24+ programs on Android/Termux that spawn subprocesses, you may encounter:
 
 ```
 SIGSYS: bad system call
@@ -12,68 +12,68 @@ internal/syscall/unix.PidFDOpen
 
 ### What's Actually Happening
 
-**Important clarification**: This crash happens during **module execution** (when spawning subprocesses), NOT during runtime initialization.
+**Important clarification**: This crash happens during **module execution** (when spawning subprocesses), NOT during runtime initialization or basic queries.
 
-✅ **Works fine**: Basic Clio queries like "extract tar file"
-❌ **Crashes**: Running modules like `setup` that execute shell commands
+✅ **Works fine**: Basic Clio queries like "extract tar file", REPL, search functionality
+❌ **Crashes**: Running modules like `setup` that execute shell commands (if done in Go binary)
 
-### The Call Chain
+### The Call Chain (Old Approach)
 
 ```
 User runs: clio >> setup
   → ExecuteModule()
     → executeStep() with type="command"
-      → safeexec.Command("sh", "-c", cmd)
+      → os/exec.Command("sh", "-c", cmd)
         → os/exec.Cmd.Start()
-          → Go 1.24 tries pidfd_open(434)
-            → Android seccomp returns SIGSYS
+          → Go 1.24+ runtime probes pidfd_open(434)
+            → Android seccomp returns SIGSYS (not ENOSYS)
               → CRASH ❌
 ```
 
 ### The Key Difference
 
 - **ENOSYS** ("not implemented") → Go falls back gracefully ✅
-- **SIGSYS** ("blocked by security policy") → Crash ❌
+- **SIGSYS** ("blocked by security policy") → Immediate crash ❌
 
-Android uses seccomp to block newer syscalls for security. Go 1.24 doesn't expect SIGSYS during process spawning.
+Android uses seccomp-bpf to block newer syscalls for security. Go 1.24+ runtime doesn't expect SIGSYS during process spawning.
 
-### Why This Happens
+### Why Userspace Fixes Don't Work
 
-1. **Go 1.24 uses newer syscalls**: `pidfd_open`, `clone3`, `faccessat2`
-2. **Android's seccomp filters block these** on many devices for security
-3. **Crash during subprocess spawning**: When modules execute commands
-4. **Architecture mismatches**: Cross-compilation issues compound the problem
-
-### The Solution: Runtime Mitigation
-
-Since the crash happens during **subprocess spawning** (not runtime init), we CAN fix it in application code:
+Initial attempts to fix this via `SysProcAttr` modifications proved ineffective:
 
 ```go
-// internal/safeexec/safeexec_linux.go
-func Command(name string, arg ...string) *exec.Cmd {
-    cmd := exec.Command(name, arg...)
-    
-    if cmd.SysProcAttr == nil {
-        cmd.SysProcAttr = &syscall.SysProcAttr{}
-    }
-    
-    // Disable pidfd_open - Go 1.24 won't try to use it
-    cmd.SysProcAttr.PidFD = nil
-    
-    // Force legacy clone() instead of clone3()
-    cmd.SysProcAttr.Cloneflags = 0
-    
-    return cmd
-}
+// ❌ DOESN'T WORK - PidFD is just storage, not a control flag
+cmd.SysProcAttr.PidFD = nil
+
+// ✅ WORKS for clone3, but doesn't help with pidfd_open
+cmd.SysProcAttr.Cloneflags = 0
 ```
 
-**What this fixes:**
-- ✅ `pidfd_open` - Disabled by setting `PidFD = nil`
-- ✅ `clone3` - Forced to legacy via `Cloneflags = 0`  
-- ✅ `faccessat2` - Custom `LookPath` avoids it
+**Why?** Go 1.24+'s runtime still **probes** for `pidfd_open` availability during subprocess setup, regardless of `PidFD` pointer value. The Android kernel responds with SIGSYS (fatal), not ENOSYS (graceful fallback).
 
-**Why this works:**
-Module commands go through our `safeexec.Command()` wrapper, which configures `SysProcAttr` before Go tries any syscalls. This is different from runtime initialization where we have no control.
+### The Solution: External Script Executor
+
+Since userspace fixes are insufficient, Clio now separates concerns:
+
+1. **Go binary (`clio`)**: Handles all query/search functionality (no subprocess spawning)
+2. **Bash script (`clio-run-module`)**: Executes YAML module workflows (pure bash)
+
+**New execution flow:**
+
+```
+User runs: clio-run-module termux_setup setup
+  → Bash script queries SQLite DB (using sqlite3 CLI)
+    → Bash parses YAML and executes shell commands
+      → Bash doesn't use Go runtime at all
+        → SUCCESS ✅
+```
+
+**Advantages:**
+- ✅ Go binary works perfectly for all search/REPL functionality
+- ✅ Module execution works without syscall restrictions
+- ✅ No Go version constraints (can use latest Go 1.24+)
+- ✅ Clean separation of concerns
+- ✅ Install script provides both tools automatically
 
 ## Building for Termux
 
@@ -143,44 +143,52 @@ docker run --security-opt seccomp=unconfined ...
 
 ## Technical Details
 
-### Why Go 1.23 Instead of 1.24?
+### Why External Script Instead of Go Version Downgrade?
 
-Go 1.23 doesn't use `pidfd_open`, avoiding the blocked syscall entirely:
+Initial attempts considered using Go 1.22 (which doesn't use `pidfd_open`), but this approach had problems:
 
-- ✅ No `pidfd_open` calls
-- ✅ Still maintained (1.23.8 has security updates)
-- ✅ Compatible with Android 7+ (Termux minimum)
-- ✅ Works with all Clio dependencies
+**Go 1.22 approach:**
+- ❌ Dependencies require Go 1.24+ (modernc.org/sqlite)
+- ❌ Go 1.22 reached EOL in March 2024
+- ❌ Security vulnerabilities accumulate over time
+- ❌ Limits development toolchain options
 
-### Why Not Downgrade the Project?
+**External script approach (current solution):**
+- ✅ Main binary uses latest Go 1.24+ (best performance, security)
+- ✅ Module execution via Python (no syscall restrictions)
+- ✅ Clean separation: search/query vs automation
+- ✅ No compromise on dependencies or toolchain
+- ✅ Python 3 is standard on Termux
 
-Clio's `go.mod` specifies Go 1.24:
+### How the External Script Works
 
-```go
-go 1.24
+The `clio-run-module` script installed alongside `clio`:
 
-toolchain go1.24.3
-```
+1. **Reads** YAML module definitions from `~/.clio/modules.db` (using `sqlite3` CLI)
+2. **Parses** YAML using bash regex and text processing
+3. **Executes** shell commands via bash `eval`
+4. **Handles** all step types: message, confirm, input, command, section, etc.
 
-**Reasons:**
-1. **Development on Linux/Mac works fine** with Go 1.24
-2. **Dependencies benefit** from Go 1.24 improvements
-3. **Only Termux has the issue** - project-wide downgrade is overkill
-4. **GOTOOLCHAIN handles it cleanly** for Termux-specific builds
+**Key advantage:** Bash doesn't involve Go runtime at all, completely avoiding `pidfd_open` and other restricted syscalls.
 
-### The GOTOOLCHAIN Solution
+### Script Dependencies
 
-Go 1.21+ supports toolchain selection via `GOTOOLCHAIN` environment variable:
+The `clio-run-module` bash script requires:
+- ✅ **sqlite3 CLI** - Pre-installed on Termux, reads from `~/.clio/modules.db`
+- ✅ **Standard bash** - Available everywhere (Termux, Linux, macOS)
+- ❌ **No Python** - Removed to avoid tooling/pip dependencies
+- ❌ **No yq or external YAML parsers** - Simple bash regex parsing sufficient
 
-```bash
-GOTOOLCHAIN=go1.23.8 go build ./cmd/clio
-```
+**Why this matters:** Users can `curl install.sh | bash` and everything just works. No package managers, no pip installs, no setup required.
 
-This overrides the `go.mod` toolchain **only for that build**, allowing:
-- Development with Go 1.24 on Linux/Mac
-- Production builds with Go 1.23 for Termux
-- No project-wide compromises
+### Installation Flow
 
+When users run the `install.sh` script:
+
+1. Downloads the `clio` binary from GitHub releases
+2. Installs to `$PREFIX/bin/clio` (Termux) or `/usr/local/bin/clio`
+3. **Creates** `clio-run-module` script in the same directory
+4. Sets executable permissions on both files
 
 ### CGO Disabled
 
@@ -194,37 +202,66 @@ The `modernc.org/sqlite` dependency is CGO-free, so database functionality works
 
 ## Verification
 
-After building/installing, verify it works:
+After installing, verify it works:
 
 ```bash
+# Test the main binary
 clio
 >> list files
+>> sync
+
+# Test module execution
+clio-run-module termux_setup setup
 ```
 
-If you still get SIGSYS errors:
+If you encounter issues:
 
-1. **Check Go version**: `go version` (should be 1.23.x)
-2. **Check architecture**: `file clio` (should match your device)
-3. **Check Android version**: `getprop ro.build.version.release` (should be 7+)
+1. **Check Python 3**: `python3 --version` (required for module runner)
+2. **Check scripts installed**: `which clio clio-run-module`
+3. **Check database**: `ls -lh ~/.clio/modules.db` (created after first `sync`)
 4. **Report issue**: https://github.com/themobileprof/clio/issues
 
 ## Known Issues
 
-### Issue: "bad system call" on Go 1.24+
+### Issue: "clio-run-module: command not found"
 
-**Symptom:** SIGSYS when running setup or interactive commands
+**Symptom:** Script not found after installation
 
-**Cause:** Go 1.24 uses `pidfd_open` which Android blocks
+**Cause:** Install script didn't complete or PATH issue
 
-**Fix:** Downgraded to Go 1.23.5 in `go.mod`
+**Fix:** 
+```bash
+# Check if it exists
+ls -l $PREFIX/bin/clio-run-module  # Termux
+ls -l ~/.local/bin/clio-run-module # Linux
+
+# If missing, reinstall
+curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+```
+
+### Issue: "Module database not found"
+
+**Symptom:** clio-run-module can't find modules
+
+**Cause:** Haven't run 'sync' yet
+
+**Fix:** Run `clio`, then type `sync` to download modules
+
+### Issue: "sqlite3 not found"
+
+**Symptom:** clio-run-module fails immediately
+
+**Cause:** sqlite3 CLI not available (rare - should be pre-installed)
+
+**Fix:** `pkg install sqlite` (on Termux)
 
 ### Issue: "cannot execute binary file"
 
-**Symptom:** Binary won't run on device
+**Symptom:** `clio` binary won't run on device
 
 **Cause:** Architecture mismatch (amd64 binary on ARM device)
 
-**Fix:** Use correct GOARCH when building:
+**Fix:** Install script should detect this automatically. If building manually:
 - Most Termux: `GOARCH=arm64`
 - Older devices: `GOARCH=arm GOARM=7`
 
@@ -232,7 +269,7 @@ If you still get SIGSYS errors:
 
 **Symptom:** Can't execute after copying to $PREFIX/bin
 
-**Fix:** `chmod +x $PREFIX/bin/clio`
+**Fix:** `chmod +x $PREFIX/bin/clio $PREFIX/bin/clio-run-module`
 
 ## References
 

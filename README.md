@@ -143,7 +143,7 @@ Or if in the source directory:
 
 ### Special Commands
 
-- **`setup`** - Run Termux setup wizard (Termux only, first-time use)
+- **`setup`** - Show instructions for running module workflows (displays `clio-run-module` command)
 - **`sync`** - Download latest automation modules from GitHub
 - **`clear`** - Clear the screen
 - **`exit`** or **`quit`** - Exit Clio
@@ -164,14 +164,29 @@ What would you like to do?
   ...
 ```
 
-### Termux Setup (First-Time Users)
-If you're on Termux and haven't set up your development environment yet:
+### Module Execution
 
-```text
->> setup
+Clio includes automation modules (YAML-based workflows) for complex tasks. To execute modules:
+
+```bash
+# In the Clio REPL, sync modules first
+>> sync
+
+# Exit and run modules with the external script
+$ clio-run-module termux_setup setup
+$ clio-run-module <module_id> <flow_name>
 ```
 
-This interactive wizard will configure:
+**Example - Termux Setup:**
+If you're on Termux and want to configure your development environment:
+
+```bash
+$ clio-run-module termux_setup setup
+```
+
+**Why external script?** On Termux/Android, Go 1.24+'s subprocess handling triggers blocked syscalls (pidfd_open). Using a bash script avoids this. For simplicity and consistency, all platforms use the same execution method.
+
+**The termux_setup module** includes:
 - **System Updates**: Package updates and mirror optimization
 - **Storage Access**: Android storage integration
 - **Zsh Shell**: Oh-My-Zsh with Powerlevel10k theme
@@ -225,58 +240,57 @@ echo "check disk space" | ./clio
 
 ## Troubleshooting
 
-### Termux: "SIGSYS: bad system call" Error
+### Termux: Module Execution
 
-If you encounter this error when running **module commands** (like `setup`) on Termux:
+**Why use an external script?**
 
+On Termux/Android, module execution (which spawns shell commands) must use the `clio-run-module` helper script instead of running directly in the Go binary.
+
+**Technical Background:**
+
+Go 1.24+ uses the `pidfd_open` syscall (syscall #434) for process management when spawning subprocesses. Android's seccomp filter blocks this syscall with `SIGSYS`, which would crash the Go binary if it tried to execute commands.
+
+**The Solution:**
+
+Clio separates concerns:
+- ✅ **Query/search functionality** runs in the Go binary (no subprocess spawning)
+- ✅ **Module execution** uses the `clio-run-module` bash script (reads pre-processed format from DB)
+
+**Usage:**
+
+```bash
+# In the Clio REPL, sync modules first
+>> sync
+
+# Exit and run modules with the external script
+$ clio-run-module termux_setup setup
+$ clio-run-module <module_id> <flow_name>
 ```
-SIGSYS: bad system call
-PC=0x1c280 m=2 sigcode=1
-internal/syscall/unix.PidFDOpen
-```
 
-**What Happens:**
-- ✅ **Basic queries work**: "extract tar file" → returns command suggestions
-- ❌ **Module execution crashes**: When running `setup` or other YAML modules that spawn subprocesses
+The `clio-run-module` script is automatically installed alongside Clio and requires only `sqlite3` (pre-installed on Termux).
 
-**Root Cause:**
+**What changed:**
 
-Go 1.24 introduced `pidfd_open` (syscall #434) for better process management. When Clio executes commands from modules via `os/exec`, Go tries to use `pidfd_open`. Android's seccomp filter blocks this syscall with `SIGSYS`, causing a crash.
+Previously, userspace fixes (setting `PidFD = nil` in Go) were attempted but ineffective - Go's runtime still probes for `pidfd_open` during subprocess spawning. The only reliable solution is to avoid subprocess spawning in the Go binary entirely.
 
-**The Fix:**
+**Implementation:**
 
-Clio now includes a **runtime mitigation** in the `safeexec` wrapper that disables `pidfd_open` at the application level:
+The `clio` binary handles all query/search functionality without issues. For module execution:
+1. During `sync`, Go parses YAML and converts to bash-friendly key-value format
+2. Both YAML and bash format are stored in the database
+3. `clio-run-module` reads the pre-processed bash format (no YAML parsing in bash)
+4. Bash script sources variables and executes workflow steps
 
-```go
-// internal/safeexec/safeexec_linux.go
-cmd.SysProcAttr.PidFD = nil      // Disables pidfd_open
-cmd.SysProcAttr.Cloneflags = 0   // Forces legacy clone()
-```
+**Benefits:**
+- ✅ Simple: No fragile YAML parsing in bash
+- ✅ Robust: Go's proper YAML parser handles everything during sync
+- ✅ Universal: Same approach works on all platforms (Termux, Linux, macOS)
 
-**If using pre-built binaries:**
-You shouldn't encounter this - the fix is already included.
+**Installation:**
 
-**If building from source:**
+The `install.sh` script automatically creates `clio-run-module` in the same directory as the `clio` binary on all platforms (e.g., `$PREFIX/bin/clio-run-module` on Termux, `/usr/local/bin/clio-run-module` on Linux/macOS).
 
-1. **On Termux:**
-   ```bash
-   ./build-termux.sh
-   cp clio $PREFIX/bin/
-   ```
-
-2. **Cross-compile from Linux/Mac:**
-   ```bash
-   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
-   ```
-
-3. **Manual build:**
-   ```bash
-   go build -o clio ./cmd/clio  # Works with Go 1.24+
-   ```
-
-**What the safeexec wrapper fixes:**
-- ✅ `pidfd_open` - Disabled via `SysProcAttr.PidFD = nil`
-- ✅ `clone3` - Forced to legacy `clone()` via `Cloneflags = 0`
+## Development
 - ✅ `faccessat2` - Custom `LookPath` avoids this syscall
 
 **Why this works:**

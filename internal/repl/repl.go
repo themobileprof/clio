@@ -3,7 +3,6 @@ package repl
 import (
 	"bufio"
 	"clio/internal/intent"
-	"clio/internal/layer3"
 	"clio/internal/modules"
 	"clio/internal/safeexec"
 	"clio/internal/setup"
@@ -26,8 +25,10 @@ func Run() {
 	// Check if on Termux and setup is needed
 	if setup.IsTermux() && !setup.IsSetupComplete() {
 		fmt.Println("\n💡 First time on Termux?")
-		fmt.Println("   Run 'setup' for a complete development environment configuration.")
-		fmt.Println("   (Includes Zsh, Vim, Git, LLM, and more)")
+		fmt.Println("   Complete development environment setup:")
+		fmt.Println("   1. Run 'sync' to download modules")
+		fmt.Println("   2. Run: clio-run-module termux_setup setup")
+		fmt.Println("   (Zsh, Vim, Git, LLM, and more)")
 		fmt.Println()
 	}
 
@@ -49,29 +50,22 @@ func Run() {
 			continue
 		}
 		if input == "setup" {
-			if !setup.IsTermux() {
-				fmt.Println("⚠️  Termux setup is only available on Termux.")
-				continue
+			fmt.Println("╔══════════════════════════════════════════════════════════╗")
+			fmt.Println("║       🚀 Module Execution                                ║")
+			fmt.Println("╚══════════════════════════════════════════════════════════╝")
+			fmt.Println()
+			fmt.Println("Module workflows are executed via the clio-run-module script.")
+			fmt.Println()
+			fmt.Println("Run this command:")
+			if setup.IsTermux() {
+				fmt.Println("  clio-run-module termux_setup setup")
+			} else {
+				fmt.Println("  clio-run-module <module_id> [flow_name]")
+				fmt.Println()
+				fmt.Println("Example: clio-run-module my_workflow setup")
 			}
-
-			// Load the termux_setup module
-			yamlContent, err := layer3.GetModuleByID("termux_setup")
-			if err != nil {
-				fmt.Printf("Setup module not found: %v\n", err)
-				fmt.Println("Try running 'sync' to download modules.")
-				continue
-			}
-
-			module, err := modules.LoadModule(yamlContent)
-			if err != nil {
-				fmt.Printf("Failed to parse setup module: %v\n", err)
-				continue
-			}
-
-			// Execute the setup flow
-			if err := modules.ExecuteModule(module, "setup", scanner); err != nil {
-				fmt.Printf("Setup error: %v\n", err)
-			}
+			fmt.Println()
+			fmt.Println("(Run 'sync' first if you haven't already)")
 			continue
 		}
 		if input == "sync" {

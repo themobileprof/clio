@@ -21,8 +21,9 @@ esac
 
 echo "Target architecture: $GOARCH"
 echo ""
-echo "Note: Clio includes safeexec wrapper to avoid Android seccomp issues"
-echo "      (Disables pidfd_open, clone3, faccessat2 syscalls)"
+echo "Note: For module execution on Termux, use the 'clio-run-module' script"
+echo "      (Installed automatically by install.sh alongside the binary)"
+echo "      This avoids Android seccomp syscall restrictions (pidfd_open)"
 echo ""
 
 # Build with Android compatibility

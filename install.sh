@@ -113,6 +113,202 @@ mv "$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
 CLIO_DIR="$HOME/.clio"
 mkdir -p "$CLIO_DIR/modules"
 
+# Install the module runner script (works around Android/Termux syscall restrictions)
+echo "Installing clio-run-module helper script..."
+cat > "$INSTALL_DIR/clio-run-module" <<'EOMODRUNNER'
+#!/bin/bash
+# clio-run-module - Execute Clio YAML modules without triggering Android seccomp syscall blocks
+# Pure bash implementation - no Python required
+
+set -euo pipefail
+
+MODULE_ID="${1:-}"
+FLOW_NAME="${2:-setup}"
+DB_PATH="${HOME}/.clio/modules.db"
+
+if [ -z "$MODULE_ID" ]; then
+    echo "Usage: clio-run-module <module_id> [flow_name]"
+    echo "Example: clio-run-module termux_setup setup"
+    exit 1
+fi
+
+if [ ! -f "$DB_PATH" ]; then
+    echo "❌ Module database not found at: $DB_PATH"
+    echo "Run 'clio' and type 'sync' to download modules first."
+    exit 1
+fi
+
+# Check for sqlite3
+if ! command -v sqlite3 >/dev/null 2>&1; then
+    echo "❌ sqlite3 is required but not installed."
+    echo "On Termux: pkg install sqlite"
+    exit 1
+fi
+
+# Load pre-processed bash script from database
+echo "📦 Loading module: $MODULE_ID"
+BASH_SCRIPT=$(sqlite3 "$DB_PATH" "SELECT bash_script FROM modules WHERE module_id = '$MODULE_ID';" 2>/dev/null)
+
+if [ -z "$BASH_SCRIPT" ]; then
+    echo "❌ Module '$MODULE_ID' not found in database or not preprocessed"
+    echo "Run 'clio' and type 'sync' to download and process modules."
+    exit 1
+fi
+
+# Write script to temp file
+TEMP_SCRIPT=$(mktemp)
+echo "$BASH_SCRIPT" > "$TEMP_SCRIPT"
+trap "rm -f $TEMP_SCRIPT" EXIT
+
+# Source the variables
+source "$TEMP_SCRIPT"
+
+# Display module info
+echo "📋 $MODULE_NAME"
+[ -n "$MODULE_DESC" ] && echo "   $MODULE_DESC"
+[ -n "$ESTIMATED_TIME" ] && echo "   ⏱️  Estimated time: $ESTIMATED_TIME"
+echo ""
+
+# Execute steps
+SECTION_INDEX=0
+for ((i=0; i<STEP_COUNT; i++)); do
+    type_var="STEP_${i}_TYPE"
+    step_type="${!type_var}"
+    
+    case "$step_type" in
+        message)
+            content_var="STEP_${i}_CONTENT"
+            echo -e "${!content_var}"
+            ;;
+        confirm)
+            prompt_var="STEP_${i}_PROMPT"
+            default_var="STEP_${i}_DEFAULT"
+            on_no_var="STEP_${i}_ON_NO"
+            
+            prompt_text="${!prompt_var:-Continue?}"
+            default_val="${!default_var:-yes}"
+            on_no="${!on_no_var}"
+            
+            hint="[Y/n]"
+            [ "$default_val" != "yes" ] && hint="[y/N]"
+            
+            read -p "$prompt_text $hint: " response
+            response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+            [ -z "$response" ] && response="$default_val"
+            
+            if [[ "$response" =~ ^n(o)?$ ]]; then
+                if [ "$on_no" = "abort" ]; then
+                    echo "❌ Aborted by user"
+                    exit 0
+                fi
+            fi
+            ;;
+        command)
+            desc_var="STEP_${i}_DESCRIPTION"
+            cmd_var="STEP_${i}_COMMAND"
+            show_var="STEP_${i}_SHOW_OUTPUT"
+            interactive_var="STEP_${i}_INTERACTIVE"
+            continue_var="STEP_${i}_CONTINUE_ON_ERROR"
+            
+            [ -n "${!desc_var}" ] && echo "${!desc_var}..."
+            
+            cmd="${!cmd_var}"
+            if [ "${!interactive_var}" = "true" ]; then
+                eval "$cmd" || {
+                    if [ "${!continue_var}" != "true" ]; then
+                        echo "❌ Command failed"
+                        exit 1
+                    fi
+                    echo "⚠️  Warning: Command failed"
+                }
+            elif [ "${!show_var}" = "true" ]; then
+                eval "$cmd" || {
+                    if [ "${!continue_var}" != "true" ]; then
+                        echo "❌ Command failed"
+                        exit 1
+                    fi
+                    echo "⚠️  Warning: Command failed"
+                }
+            else
+                eval "$cmd" >/dev/null 2>&1 || {
+                    if [ "${!continue_var}" != "true" ]; then
+                        echo "❌ Command failed"
+                        exit 1
+                    fi
+                    echo "⚠️  Warning: Command failed"
+                }
+            fi
+            ;;
+        section)
+            title_var="STEP_${i}_TITLE"
+            sub_count_var="STEP_${i}_SUB_COUNT"
+            
+            ((SECTION_INDEX++))
+            echo ""
+            echo "[$SECTION_INDEX/$SECTION_COUNT] ${!title_var}"
+            echo "────────────────────────────────────────────────────────────"
+            
+            # Execute substeps
+            sub_count="${!sub_count_var:-0}"
+            for ((j=0; j<sub_count; j++)); do
+                sub_type_var="STEP_${i}_SUB_${j}_TYPE"
+                sub_type="${!sub_type_var}"
+                
+                if [ "$sub_type" = "command" ]; then
+                    sub_desc_var="STEP_${i}_SUB_${j}_DESCRIPTION"
+                    sub_cmd_var="STEP_${i}_SUB_${j}_COMMAND"
+                    sub_show_var="STEP_${i}_SUB_${j}_SHOW_OUTPUT"
+                    sub_interactive_var="STEP_${i}_SUB_${j}_INTERACTIVE"
+                    sub_continue_var="STEP_${i}_SUB_${j}_CONTINUE_ON_ERROR"
+                    
+                    [ -n "${!sub_desc_var}" ] && echo "${!sub_desc_var}..."
+                    
+                    sub_cmd="${!sub_cmd_var}"
+                    if [ "${!sub_interactive_var}" = "true" ]; then
+                        eval "$sub_cmd" || {
+                            if [ "${!sub_continue_var}" != "true" ]; then
+                                echo "❌ Command failed"
+                                exit 1
+                            fi
+                            echo "⚠️  Warning: Command failed"
+                        }
+                    elif [ "${!sub_show_var}" = "true" ]; then
+                        eval "$sub_cmd" || {
+                            if [ "${!sub_continue_var}" != "true" ]; then
+                                echo "❌ Command failed"
+                                exit 1
+                            fi
+                            echo "⚠️  Warning: Command failed"
+                        }
+                    else
+                        eval "$sub_cmd" >/dev/null 2>&1 || {
+                            if [ "${!sub_continue_var}" != "true" ]; then
+                                echo "❌ Command failed"
+                                exit 1
+                            fi
+                            echo "⚠️  Warning: Command failed"
+                        }
+                    fi
+                fi
+            done
+            
+            echo "✅ ${!title_var} complete"
+            ;;
+        check_command)
+            cmd_var="STEP_${i}_COMMAND"
+            command -v "${!cmd_var}" >/dev/null 2>&1 || {
+                echo "⚠️  Command '${!cmd_var}' not found, skipping..."
+            }
+            ;;
+    esac
+done
+
+echo ""
+echo "✅ Module execution completed!"
+EOMODRUNNER
+
+chmod +x "$INSTALL_DIR/clio-run-module"
+
 echo "✅ Successfully installed $BIN_NAME to $INSTALL_DIR"
 
 # Check PATH

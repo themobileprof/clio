@@ -64,8 +64,20 @@ cp clio $PREFIX/bin/
 
 **Cross-compile for Termux (from Linux/Mac):**
 ```bash
+# 64-bit phones (most current devices)
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
-# Transfer to device via adb or other method
+
+# 32-bit ARM phones (older devices — must use arm, not arm64)
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -o clio-arm ./cmd/clio
+```
+
+**Test in Termux Docker (before deploying to phones):**
+```bash
+# One-time: enable ARM emulation on x86 hosts
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+./scripts/test-termux-docker.sh arm       # 32-bit armv7l
+./scripts/test-termux-docker.sh aarch64   # 64-bit
 ```
 
 ### Uninstall

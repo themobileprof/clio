@@ -26,4 +26,7 @@ jobs:
       run: go test -v ./...
 
     - name: Build Verification
-      run: go build -ldflags="-s -w" -v ./cmd/clio
+      run: |
+        go build -ldflags="-s -w" -v ./cmd/clio
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -o clio-linux-arm ./cmd/clio
+        file clio-linux-arm | grep -q 'ARM, EABI5'

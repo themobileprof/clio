@@ -16,9 +16,15 @@ case "$OS" in
 esac
 
 case "$ARCH" in
-    x86_64) ARCH="amd64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
-    *)      echo "Unsupported Arch: $ARCH"; exit 1 ;;
+    x86_64)          ARCH="amd64" ;;
+    aarch64|arm64)   ARCH="arm64" ;;
+    armv7l|armv8l|arm) ARCH="arm" ;;   # 32-bit ARM Termux (older phones)
+    i686|i386)       ARCH="386" ;;      # 32-bit x86 Termux (rare)
+    *)
+        echo "Unsupported Arch: $ARCH"
+        echo "Build from source: ./build-termux.sh"
+        exit 1
+        ;;
 esac
 
 # Determine install path (Termux support)

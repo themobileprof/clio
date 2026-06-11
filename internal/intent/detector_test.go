@@ -94,24 +94,30 @@ func TestDetectNigerianStudentQueries(t *testing.T) {
 	}
 }
 
-func TestDetectTermuxSetup(t *testing.T) {
-	queries := []string{
-		"setup",
-		"termux setup",
-		"how do I setup termux for coding",
-		"abeg help me setup termux",
+func TestDetectSetupWizards(t *testing.T) {
+	cases := []struct {
+		query  string
+		source string
+		module string
+	}{
+		{"setup", "setup-menu", ""},
+		{"termux setup", "setup", "termux_setup"},
+		{"setup vim", "setup", "vim_setup"},
+		{"install git and gh", "setup", "git_setup"},
+		{"install postgres", "setup", "database_setup"},
+		{"setup devtools", "setup", "devtools_setup"},
 	}
-	for _, q := range queries {
-		result, err := Detect(q)
+	for _, c := range cases {
+		result, err := Detect(c.query)
 		if err != nil {
-			t.Errorf("Detect(%q): %v", q, err)
+			t.Errorf("Detect(%q): %v", c.query, err)
 			continue
 		}
-		if result.Source != "setup" {
-			t.Errorf("Detect(%q): source = %q, want setup", q, result.Source)
+		if result.Source != c.source {
+			t.Errorf("Detect(%q): source = %q, want %q", c.query, result.Source, c.source)
 		}
-		if !containsStr(result.Command, "termux_setup") {
-			t.Errorf("Detect(%q) = %q, want termux_setup", q, result.Command)
+		if c.module != "" && !containsStr(result.Command, c.module) {
+			t.Errorf("Detect(%q) = %q, want %s", c.query, result.Command, c.module)
 		}
 	}
 }

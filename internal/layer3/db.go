@@ -20,6 +20,15 @@ type Module struct {
 	Keywords    string
 }
 
+// ModuleMeta is module metadata without YAML content.
+type ModuleMeta struct {
+	ModuleID    string
+	Name        string
+	Description string
+	Version     string
+	Tags        string
+}
+
 var (
 	dbInstance *sql.DB
 	dbOnce     sync.Once
@@ -241,6 +250,49 @@ func SaveLastSyncTimestamp(t time.Time) error {
 	`, t)
 
 	return err
+}
+
+// ListModuleMeta returns metadata for every cached module.
+func ListModuleMeta() ([]ModuleMeta, error) {
+	db, err := GetDB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT module_id, name, description, version, tags FROM modules ORDER BY module_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ModuleMeta
+	for rows.Next() {
+		var m ModuleMeta
+		if err := rows.Scan(&m.ModuleID, &m.Name, &m.Description, &m.Version, &m.Tags); err != nil {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// FindModuleMeta returns metadata for one module_id.
+func FindModuleMeta(moduleID string) (*ModuleMeta, error) {
+	db, err := GetDB()
+	if err != nil {
+		return nil, err
+	}
+	var m ModuleMeta
+	err = db.QueryRow(
+		`SELECT module_id, name, description, version, tags FROM modules WHERE module_id = ?`,
+		moduleID,
+	).Scan(&m.ModuleID, &m.Name, &m.Description, &m.Version, &m.Tags)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // SearchModules searches the database for modules matching the given keywords.

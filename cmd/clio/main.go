@@ -49,8 +49,14 @@ func runPipeMode() {
 		if input == "" {
 			continue
 		}
-		if setup.IsSetupRequest(input) {
-			fmt.Println(setup.RunCommand())
+		if kind, wizard := setup.ResolveSetup(input); kind != setup.MatchNone {
+			if kind == setup.MatchWizard && wizard != nil {
+				fmt.Println(setup.RunCommandFor(*wizard))
+			} else {
+				for _, w := range setup.AllWizards() {
+					fmt.Println(setup.RunCommandFor(w))
+				}
+			}
 			return
 		}
 		result, err := intent.Detect(input)

@@ -42,11 +42,53 @@ func Run() {
 			printHelp()
 			continue
 		}
-		if setup.IsSetupRequest(input) {
-			if err := modules.EnsureBuiltinModulesLoaded(); err != nil {
-				fmt.Printf("Warning: Failed to load builtin modules: %v\n", err)
+		if input == "catalog" || input == "browse" {
+			modules.ShowFullCatalog()
+			continue
+		}
+		if input == "modules" || input == "module list" {
+			modules.ShowCatalog()
+			continue
+		}
+		if strings.HasPrefix(input, "download ") {
+			moduleID := strings.TrimSpace(strings.TrimPrefix(input, "download "))
+			if moduleID == "" {
+				fmt.Println("Usage: download <module_id>")
+				fmt.Println("Example: download copy_file")
+				continue
 			}
-			setup.ShowGuide()
+			if setup.IsSetupModule(moduleID) {
+				fmt.Printf("[SETUP WIZARD] %s — use: setup %s\n", moduleID, setupWizardID(moduleID))
+				continue
+			}
+			if err := modules.EnsureModule(moduleID); err != nil {
+				fmt.Printf("Download failed: %v\n", err)
+			} else {
+				fmt.Printf("✅ %s is ready. Run: %s\n", moduleID, modules.RunCommand(moduleID, "setup"))
+			}
+			continue
+		}
+		if strings.HasPrefix(input, "module ") {
+			moduleID := strings.TrimSpace(strings.TrimPrefix(input, "module "))
+			if moduleID == "" || moduleID == "list" {
+				modules.ShowCatalog()
+				continue
+			}
+			if err := modules.ShowModuleDetail(moduleID); err != nil {
+				fmt.Println(err)
+			}
+			continue
+		}
+		if kind, wizard := setup.ResolveSetup(input); kind != setup.MatchNone {
+			if kind == setup.MatchWizard && wizard != nil {
+				if err := modules.EnsureModule(wizard.ModuleID); err != nil {
+					fmt.Printf("⚠️  Could not download module: %v\n", err)
+					fmt.Println("   Check your connection or run 'sync' later.")
+				}
+				setup.ShowWizardGuide(*wizard, false)
+			} else {
+				setup.ShowGuide()
+			}
 			continue
 		}
 		if input == "sync" || input == "sync full" || input == "sync --full" {
@@ -65,14 +107,24 @@ func Run() {
 		result, err := intent.Detect(input)
 		if err != nil {
 			fmt.Printf("⚠ No matching command found for '%s'. Try rephrasing.\n", input)
-			if setup.IsTermux() {
-				fmt.Println("   Or type 'setup' to configure your Termux dev environment.")
-			}
+			fmt.Println("   Browse: 'catalog' (both kinds) · 'setup' (wizards) · 'modules' (tasks)")
 			continue
 		}
 
-		if result.Source == "setup" {
-			setup.ShowGuide()
+		if result.Source == "setup" || result.Source == "setup-menu" {
+			switch result.Source {
+			case "setup-menu":
+				setup.ShowMenu()
+			default:
+				if w := setup.WizardFromCommand(result.Command); w != nil {
+					if err := modules.EnsureModule(w.ModuleID); err != nil {
+						fmt.Printf("⚠️  Could not download module: %v\n", err)
+					}
+					setup.ShowWizardGuide(*w, false)
+				} else {
+					setup.ShowGuide()
+				}
+			}
 			continue
 		}
 
@@ -81,7 +133,7 @@ func Run() {
 }
 
 func printWelcome() {
-	fmt.Println("CLIPilot Client (Offline First) - Type 'help' or 'exit'")
+	fmt.Println("CLIPilot Client (Offline First) - Type 'catalog', 'setup', or ask anything")
 	if config.IsLiteProfile() {
 		fmt.Println("Profile: lite (offline layers 1+3 — 'sync full' for all modules)")
 	}
@@ -92,7 +144,7 @@ func printWelcome() {
 			setup.ShowGuide()
 		} else {
 			fmt.Println()
-			fmt.Println("⭐ Termux setup: type 'setup' to re-run the dev environment wizard")
+			fmt.Println("⭐ Setup wizards: 'setup'  ·  Day-to-day tasks: 'modules'  ·  Both: 'catalog'")
 			fmt.Println()
 		}
 	}
@@ -100,27 +152,38 @@ func printWelcome() {
 
 func printHelp() {
 	fmt.Println()
-	fmt.Println("Commands:")
-	if setup.IsTermux() {
-		fmt.Println("  setup          ⭐ Termux dev environment wizard (start here)")
-	}
-	fmt.Println("  sync           Download automation modules")
-	fmt.Println("  sync full      Download full module catalog")
-	fmt.Println("  clear          Clear screen")
-	fmt.Println("  help           Show this help")
-	fmt.Println("  exit           Quit")
+	fmt.Println("Clio has two workflow types (both work with natural language):")
+	fmt.Println("  ⭐ Setup wizards     install & configure — usually once")
+	fmt.Println("  📦 Automation mods   repeat tasks — copy, backup, check disk…")
 	fmt.Println()
-	fmt.Println("Or type any question in plain English / Pidgin:")
-	fmt.Println("  e.g. 'check disk space', 'wetin dey inside folder'")
-	if setup.IsTermux() {
-		fmt.Println("  e.g. 'setup termux', 'configure dev environment'")
+	fmt.Println("Browse commands:")
+	fmt.Println("  catalog        Both types, clearly separated")
+	fmt.Println("  setup          Setup wizards only")
+	fmt.Println("  modules        Automation modules only")
+	fmt.Println("  download <id>  Get one automation module")
+	fmt.Println("  module <id>    Details for one automation module")
+	fmt.Println("  sync           Download changed modules from registry")
+	fmt.Println("  sync full      Download full module catalog")
+	fmt.Println("  clear / help / exit")
+	fmt.Println()
+	fmt.Println("── Setup wizards [SETUP WIZARD] ── ask or type setup <name> ──")
+	for _, w := range setup.AllWizards() {
+		marker := " "
+		if w.Featured && setup.IsTermux() {
+			marker = "⭐"
+		}
+		fmt.Printf("  setup %-10s %s %s\n", w.ID, marker, w.Title)
 	}
+	fmt.Println("  e.g. \"setup termux\", \"install git and gh\"")
+	fmt.Println()
+	fmt.Println("── Automation modules [AUTOMATION] ── ask or type modules ──")
+	fmt.Println("  e.g. \"check disk space\", \"copy file to backup\", \"find large files\"")
 	fmt.Println()
 }
 
 func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
+	printResultHeader(res)
 	for {
-		// Exact UI from guide (refreshed)
 		fmt.Printf("\n✓ Use: %s\n", res.Command)
 		fmt.Println("────────────────────────")
 		fmt.Printf("Purpose : %s\n\n", res.Description)
@@ -154,6 +217,30 @@ func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {
 			fmt.Println("Invalid choice.")
 		}
 	}
+}
+
+func setupWizardID(moduleID string) string {
+	for _, w := range setup.AllWizards() {
+		if w.ModuleID == moduleID {
+			return w.ID
+		}
+	}
+	return moduleID
+}
+
+func printResultHeader(res *intent.DetectionResult) {
+	fmt.Println()
+	switch res.Source {
+	case "module":
+		fmt.Println("📦 [AUTOMATION MODULE] — day-to-day task workflow")
+		fmt.Println("   (Not a setup wizard. For install/configure, type 'setup'.)")
+	case "setup", "setup-menu":
+		fmt.Println("⭐ [SETUP WIZARD] — environment install & configure")
+	default:
+		fmt.Println("⌨️  [SHELL COMMAND] — run directly in your terminal")
+	}
+	fmt.Println("   Matched from your natural-language question.")
+	fmt.Println()
 }
 
 func showExamples(res *intent.DetectionResult) {

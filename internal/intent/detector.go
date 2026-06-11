@@ -20,12 +20,20 @@ type DetectionResult struct {
 
 // Detect determines the best command for natural-language input.
 func Detect(input string) (*DetectionResult, error) {
-	// Layer 0: Termux setup wizard (first-class command)
-	if setup.IsSetupRequest(input) {
+	// Layer 0: setup wizards (Termux, Vim, Git, dev tools, databases)
+	if kind, wizard := setup.ResolveSetup(input); kind != setup.MatchNone {
+		if kind == setup.MatchWizard && wizard != nil {
+			return &DetectionResult{
+				Command:     setup.RunCommandFor(*wizard),
+				Description: wizard.Description,
+				Source:      "setup",
+				Confidence:  1.0,
+			}, nil
+		}
 		return &DetectionResult{
-			Command:     setup.RunCommand(),
+			Command:     "setup",
 			Description: setup.ShortDescription(),
-			Source:      "setup",
+			Source:      "setup-menu",
 			Confidence:  1.0,
 		}, nil
 	}

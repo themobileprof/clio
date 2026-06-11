@@ -5,64 +5,165 @@ import (
 	"strings"
 )
 
+// MatchKind describes how setup input was resolved.
+type MatchKind int
+
 const (
-	// ModuleID is the termux_setup YAML module.
-	ModuleID = "termux_setup"
-	// FlowName is the default setup wizard flow.
-	FlowName = "setup"
+	MatchNone MatchKind = iota
+	MatchMenu
+	MatchWizard
 )
 
-// RunCommand is the command students run to start the Termux dev environment wizard.
-func RunCommand() string {
-	return "clio-run-module " + ModuleID + " " + FlowName
-}
-
-// ShortDescription summarizes the setup wizard for menus and detection results.
-func ShortDescription() string {
-	return "Termux dev environment wizard (Zsh, Vim, Git, storage, optional languages)"
-}
-
-var setupExact = map[string]bool{
-	"setup": true, "termux-setup": true, "termux setup": true,
-	"setup termux": true, "configure termux": true,
-}
-
-// setupPhrases require all terms to appear (setup-related natural language).
-var setupPhrases = [][]string{
-	{"setup", "termux"},
-	{"configure", "termux"},
-	{"termux", "wizard"},
-	{"dev", "environment"},
-	{"development", "environment"},
-	{"complete", "setup"},
-	{"first", "time", "termux"},
-	{"setup", "phone"},
-	{"setup", "environment"},
-	{"install", "everything"},
-	{"termux", "ready"},
-	{"make", "termux"},
-	{"abeg", "setup"},
-	{"wan", "setup"},
-}
-
-// IsSetupRequest reports whether input is asking for the Termux setup wizard.
-func IsSetupRequest(input string) bool {
+// ResolveSetup resolves setup-related input to a wizard or menu request.
+func ResolveSetup(input string) (MatchKind, *Wizard) {
 	normalized := strings.TrimSpace(strings.ToLower(input))
-	if setupExact[normalized] {
-		return true
+	if normalized == "" {
+		return MatchNone, nil
 	}
-	// On Termux, bare "setup" family is always the wizard
-	if IsTermux() && (normalized == "start" || normalized == "begin") {
-		return true
+
+	// "setup <wizard>" or "setup <wizard> setup"
+	if strings.HasPrefix(normalized, "setup ") {
+		rest := strings.TrimSpace(normalized[6:])
+		rest = strings.TrimSuffix(rest, " setup")
+		if w := matchWizardToken(rest); w != nil {
+			return MatchWizard, w
+		}
+	}
+
+	for _, w := range AllWizards() {
+		for _, alias := range w.Aliases {
+			if normalized == alias {
+				return MatchWizard, &w
+			}
+		}
+	}
+
+	// Bare "setup" / "wizards" → menu
+	if isMenuRequest(normalized) {
+		return MatchMenu, nil
 	}
 
 	tokens := tokenSet(normalized)
-	for _, terms := range setupPhrases {
-		if allTermsPresent(tokens, terms) {
-			return true
+	for _, w := range AllWizards() {
+		for _, terms := range w.Phrases {
+			if allTermsPresent(tokens, terms) {
+				copy := w
+				return MatchWizard, &copy
+			}
 		}
 	}
+
+	return MatchNone, nil
+}
+
+func matchWizardToken(token string) *Wizard {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil
+	}
+	// Allow module id aliases
+	aliases := map[string]string{
+		"termux_setup": "termux", "vim_setup": "vim", "git_setup": "git",
+		"devtools_setup": "devtools", "database_setup": "database",
+	}
+	if id, ok := aliases[token]; ok {
+		return WizardByID(id)
+	}
+	return WizardByID(token)
+}
+
+func isMenuRequest(normalized string) bool {
+	switch normalized {
+	case "setup", "wizards", "wizard", "install", "installations":
+		return true
+	}
+	if IsTermux() && (normalized == "start" || normalized == "begin") {
+		return true
+	}
 	return false
+}
+
+// IsSetupRequest reports whether input is asking for any setup wizard or menu.
+func IsSetupRequest(input string) bool {
+	kind, _ := ResolveSetup(input)
+	return kind != MatchNone
+}
+
+// RunCommand returns the default wizard command (Termux setup on Termux, else menu hint).
+func RunCommand() string {
+	if IsTermux() {
+		if w := WizardByID("termux"); w != nil {
+			return RunCommandFor(*w)
+		}
+	}
+	return "setup"
+}
+
+// ShortDescription summarizes setup for detection results.
+func ShortDescription() string {
+	return "Interactive setup wizards (Termux, Vim, Git, dev tools, databases)"
+}
+
+// ShowMenu prints the setup wizard catalog.
+func ShowMenu() {
+	fmt.Println("╔══════════════════════════════════════════════════════════╗")
+	fmt.Println("║  ⭐ SETUP WIZARDS — not the same as automation modules   ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════╝")
+	fmt.Println()
+	ShowWizardCatalogSection(nil)
+	fmt.Println("For day-to-day task workflows (copy files, check disk, etc.):")
+	fmt.Println("  type 'modules' or 'catalog'")
+	fmt.Println()
+}
+
+// ShowGuide shows the default setup entry point (menu on multi-wizard, or Termux guide).
+func ShowGuide() {
+	if IsTermux() && !IsSetupComplete() {
+		if w := WizardByID("termux"); w != nil {
+			ShowWizardGuide(*w, true)
+			fmt.Println("Other wizards: type 'setup' to see Vim, Git, dev tools, databases.")
+			return
+		}
+	}
+	ShowMenu()
+}
+
+// ShowWizardGuide prints instructions for a specific wizard.
+func ShowWizardGuide(w Wizard, firstRun bool) {
+	if firstRun && w.ID == "termux" {
+		fmt.Println("╔══════════════════════════════════════════════════════════╗")
+		fmt.Println("║  ⭐ TERMUX SETUP — start here (first-class command)      ║")
+		fmt.Println("║     Type 'setup' for all wizards · Zsh · Vim · Git       ║")
+		fmt.Println("╚══════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Printf("╔══════════════════════════════════════════════════════════╗\n")
+		fmt.Printf("║  [SETUP WIZARD] %s %s\n", w.Icon, strings.ToUpper(w.Title))
+		fmt.Printf("╚══════════════════════════════════════════════════════════╝\n")
+	}
+	fmt.Println()
+	fmt.Println("  Type: environment setup (not a day-to-day automation task)")
+	fmt.Printf("  %s\n", w.Description)
+	if w.Time != "" {
+		fmt.Printf("  ⏱  %s\n", w.Time)
+	}
+	fmt.Println()
+	fmt.Println("Run this in your terminal:")
+	fmt.Println()
+	fmt.Printf("  %s\n", RunCommandFor(w))
+	fmt.Println()
+	if len(w.Includes) > 0 {
+		fmt.Println("Includes:")
+		for _, item := range w.Includes {
+			fmt.Printf("  • %s\n", item)
+		}
+		fmt.Println()
+	}
+	if w.ID == "termux" && !IsSetupComplete() {
+		fmt.Println("Tip: run 'sync' first if you haven't downloaded modules yet.")
+	} else {
+		fmt.Println("Safe to re-run anytime to update or reconfigure.")
+	}
+	fmt.Println()
 }
 
 func tokenSet(input string) map[string]bool {
@@ -73,7 +174,6 @@ func tokenSet(input string) map[string]bool {
 			set[t] = true
 		}
 	}
-	// Pidgin / casual
 	if set["abeg"] && set["setup"] {
 		set["setup"] = true
 	}
@@ -90,42 +190,4 @@ func allTermsPresent(set map[string]bool, terms []string) bool {
 		}
 	}
 	return true
-}
-
-// ShowGuide prints the prominent Termux setup instructions.
-func ShowGuide() {
-	cmd := RunCommand()
-	complete := IsSetupComplete()
-
-	fmtHeader(complete)
-	fmt.Println()
-	fmt.Println("Run this in your Termux terminal:")
-	fmt.Println()
-	fmt.Printf("  %s\n", cmd)
-	fmt.Println()
-	fmt.Println("Includes:")
-	fmt.Println("  • Package updates & storage access")
-	fmt.Println("  • Zsh + Oh-My-Zsh, Vim, Git, GitHub CLI")
-	fmt.Println("  • Optional: Python, Node, Go, PHP")
-	fmt.Println("  • Takes about 10–20 minutes, run once")
-	fmt.Println()
-	if !complete {
-		fmt.Println("Tip: run 'sync' first if you haven't downloaded modules yet.")
-	} else {
-		fmt.Println("Setup was completed before — safe to run again to update tools.")
-	}
-	fmt.Println()
-}
-
-func fmtHeader(complete bool) {
-	if complete {
-		fmt.Println("╔══════════════════════════════════════════════════════════╗")
-		fmt.Println("║  🚀 TERMUX SETUP — full dev environment wizard           ║")
-		fmt.Println("╚══════════════════════════════════════════════════════════╝")
-		return
-	}
-	fmt.Println("╔══════════════════════════════════════════════════════════╗")
-	fmt.Println("║  ⭐ TERMUX SETUP — start here (first-class command)      ║")
-	fmt.Println("║     Type 'setup' anytime · Zsh · Vim · Git · coding      ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════╝")
 }

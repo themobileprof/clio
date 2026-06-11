@@ -161,8 +161,18 @@ func RemoteCacheTTL() time.Duration {
 	return d
 }
 
+var testRegistryURL string
+
+// SetRegistryURLForTest overrides the registry URL (tests only).
+func SetRegistryURLForTest(url string) {
+	testRegistryURL = url
+}
+
 // GetRegistryURL returns the configured registry URL.
 func GetRegistryURL() string {
+	if testRegistryURL != "" {
+		return testRegistryURL
+	}
 	return Load().RegistryURL
 }
 

@@ -70,9 +70,6 @@ func SyncWithOptions(full bool) error {
 	if lite {
 		fmt.Println("📱 Lite sync (Termux/low-memory) — essential modules only.")
 		fmt.Println("   Use 'sync full' to download the complete catalog.")
-		if err := EnsureBuiltinModulesLoaded(); err != nil {
-			fmt.Printf("Warning: builtin modules: %v\n", err)
-		}
 	}
 
 	if err := SyncFromRegistry(lite); err != nil {
@@ -85,11 +82,12 @@ func SyncWithOptions(full bool) error {
 
 // isEssentialModule returns true for modules needed on constrained Termux devices.
 func isEssentialModule(moduleID string) bool {
-	if moduleID == "termux_setup" {
+	switch moduleID {
+	case "termux_setup", "vim_setup", "git_setup", "devtools_setup", "database_setup":
 		return true
 	}
 	lower := strings.ToLower(moduleID)
-	return strings.Contains(lower, "termux") || strings.Contains(lower, "android")
+	return strings.Contains(lower, "termux") || strings.Contains(lower, "android") || strings.HasSuffix(lower, "_setup")
 }
 
 // SyncFromRegistry downloads modules from CLIPilot registry using delta sync
@@ -192,9 +190,8 @@ func downloadAndSaveModule(registryURL, moduleID string) error {
 		return fmt.Errorf("yaml parse error: %w", err)
 	}
 
-	// Validate
-	if mod.ID == "" || mod.Name == "" {
-		return fmt.Errorf("missing id or name")
+	if mod.Name == "" {
+		return fmt.Errorf("missing name in %s", moduleID)
 	}
 
 	tags := strings.Join(mod.Tags, ",")
@@ -206,8 +203,8 @@ func downloadAndSaveModule(registryURL, moduleID string) error {
 		bashScript = "" // Store empty on error
 	}
 
-	// Save to DB with checksum
-	return layer3.UpsertModuleWithChecksum(mod.ID, mod.Name, mod.Description, tags, mod.Version, string(body), bashScript, checksum)
+	// Registry name is the DB key (what clio-run-module uses), not necessarily yaml id.
+	return layer3.UpsertModuleWithChecksum(moduleID, mod.Name, mod.Description, tags, mod.Version, string(body), bashScript, checksum)
 }
 
 // SyncFromGitHub downloads modules from GitHub (fallback method)
@@ -245,7 +242,7 @@ func SyncFromGitHub(lite bool) error {
 		}
 
 		fmt.Printf("  Processing %s...\n", item.Name)
-		if err := processModule(item.DownloadURL); err != nil {
+		if err := processModuleByID(moduleID, item.DownloadURL); err != nil {
 			fmt.Printf("  ❌ Failed %s: %v\n", item.Name, err)
 		} else {
 			count++
@@ -262,7 +259,7 @@ func SyncFromGitHub(lite bool) error {
 	return nil
 }
 
-func processModule(url string) error {
+func processModuleByID(moduleID, url string) error {
 	resp, err := syncHTTP.Get(url)
 	if err != nil {
 		return err
@@ -282,21 +279,22 @@ func processModule(url string) error {
 		return fmt.Errorf("yaml parse error: %w", err)
 	}
 
-	// Validate minimal fields
-	if mod.ID == "" || mod.Name == "" {
-		return fmt.Errorf("missing id or name")
+	if mod.Name == "" {
+		return fmt.Errorf("missing name in %s", moduleID)
 	}
 
 	tags := strings.Join(mod.Tags, ",")
 
-	// Generate bash-friendly script for Termux
 	bashScript, err := convertYAMLToBashScript(string(body))
 	if err != nil {
 		fmt.Printf("  Warning: failed to generate bash script: %v\n", err)
-		bashScript = "" // Store empty on error
+		bashScript = ""
 	}
 
-	return layer3.UpsertModule(mod.ID, mod.Name, mod.Description, tags, mod.Version, string(body), bashScript)
+	hash := sha256.Sum256(body)
+	checksum := fmt.Sprintf("%x", hash)
+
+	return layer3.UpsertModuleWithChecksum(moduleID, mod.Name, mod.Description, tags, mod.Version, string(body), bashScript, checksum)
 }
 
 // convertYAMLToBashScript converts module YAML to bash-friendly format

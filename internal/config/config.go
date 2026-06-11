@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,22 +21,35 @@ const (
 	ProfileFull Profile = "full"
 )
 
+// RemoteSearchMode controls when layer 4 (CLIPilot) is consulted.
+type RemoteSearchMode string
+
+const (
+	RemoteAuto RemoteSearchMode = "auto" // when local layers fail (default)
+	RemoteOn   RemoteSearchMode = "on"   // always try remote after local
+	RemoteOff  RemoteSearchMode = "off"  // never use network for search
+)
+
 // Config holds Clio configuration settings.
 type Config struct {
-	Profile      Profile `yaml:"profile"`
-	RegistryURL  string  `yaml:"registry_url"`
-	CacheTTL     string  `yaml:"cache_ttl"`
-	SyncInterval string  `yaml:"sync_interval"`
-	DBPath       string  `yaml:"db_path"`
+	Profile       Profile          `yaml:"profile"`
+	RegistryURL   string           `yaml:"registry_url"`
+	CacheTTL      string           `yaml:"cache_ttl"`
+	SyncInterval  string           `yaml:"sync_interval"`
+	DBPath        string           `yaml:"db_path"`
+	RemoteSearch  RemoteSearchMode `yaml:"remote_search"`
+	RemoteCacheTTL string          `yaml:"remote_cache_ttl"`
 	// MemoryLimit sets the Go runtime soft memory cap (e.g. "48MiB"). Empty = default per profile.
 	MemoryLimit string `yaml:"memory_limit"`
 }
 
 var defaultConfig = Config{
-	Profile:      ProfileAuto,
-	RegistryURL:  "https://clipilot.themobileprof.com",
-	CacheTTL:     "24h",
-	SyncInterval: "168h",
+	Profile:        ProfileAuto,
+	RegistryURL:    "https://clipilot.themobileprof.com",
+	CacheTTL:       "24h",
+	SyncInterval:   "168h",
+	RemoteSearch:   RemoteAuto,
+	RemoteCacheTTL: "168h",
 }
 
 var (
@@ -90,6 +104,12 @@ func applyDefaults(cfg Config) Config {
 	if cfg.Profile == "" {
 		cfg.Profile = ProfileAuto
 	}
+	if cfg.RemoteSearch == "" {
+		cfg.RemoteSearch = RemoteAuto
+	}
+	if cfg.RemoteCacheTTL == "" {
+		cfg.RemoteCacheTTL = defaultConfig.RemoteCacheTTL
+	}
 	if cfg.DBPath == "" {
 		home, err := os.UserHomeDir()
 		if err == nil {
@@ -115,9 +135,30 @@ func EffectiveProfile() Profile {
 	}
 }
 
-// IsLiteProfile is true when man search, remote API, and full module sync are skipped.
+// IsLiteProfile is true when man search and full module sync are skipped.
 func IsLiteProfile() bool {
 	return EffectiveProfile() == ProfileLite
+}
+
+// ShouldUseRemote is true when CLIPilot search is allowed for this config.
+func ShouldUseRemote() bool {
+	switch Load().RemoteSearch {
+	case RemoteOff:
+		return false
+	case RemoteOn, RemoteAuto:
+		return true
+	default:
+		return true
+	}
+}
+
+// RemoteCacheTTL parses remote_cache_ttl from config.
+func RemoteCacheTTL() time.Duration {
+	d, err := time.ParseDuration(Load().RemoteCacheTTL)
+	if err != nil {
+		return 168 * time.Hour
+	}
+	return d
 }
 
 // GetRegistryURL returns the configured registry URL.

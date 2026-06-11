@@ -168,6 +168,7 @@ var VerbAliases = map[string]string{
     "show": "list", "see": "list", "display": "list", "ls": "list", "dir": "list",
     "make": "create", "new": "create", "generate": "create", "touch": "create",
     "delete": "remove", "del": "remove", "erase": "remove", "rm": "remove", "kill": "remove",
+    "comot": "remove", "clear": "remove",
     "duplicate": "copy", "clone": "copy", "cp": "copy",
     "mv": "move", "transfer": "move",
     "name": "rename",
@@ -191,6 +192,9 @@ var NounAliases = map[string]string{
     "connection": "network", "wifi": "network", "net": "network",
     "storage": "disk", "hdd": "disk", "ssd": "disk",
     "addr": "ip", "address": "ip",
+    "pictures": "file", "pics": "file", "photos": "file",
+    "coursework": "file", "homework": "file", "slides": "file",
+    "note": "file", "notes": "file", "lecture": "file",
 }
 
 // PreProcess now returns a structured parsed intent

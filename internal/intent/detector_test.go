@@ -53,6 +53,69 @@ func findSub(s, sub string) bool {
 	return false
 }
 
+func TestDetectNigerianStudentQueries(t *testing.T) {
+	cases := []struct {
+		query    string
+		contains string
+	}{
+		{"wetin dey inside this folder", "ls"},
+		{"abeg show me the files here", "ls"},
+		{"my phone storage don full", "df"},
+		{"space don finish abeg", "df"},
+		{"data no dey work", "ping"},
+		{"internet no dey work o", "ping"},
+		{"app dey jam", "kill"},
+		{"app dey jam wetin i go do", "kill"},
+		{"phone dey slow", "free"},
+		{"e no gree again abeg", "kill"},
+		{"comot this file abeg", "rm"},
+		{"i wan install python for termux", "python"},
+		{"how i go take clone project from github", "git clone"},
+		{"abeg help me find lecture note pdf", "pdf"},
+		{"make i create new folder for project", "mkdir"},
+		{"send file to my laptop", "scp"},
+		{"download something from the web", "wget"},
+		{"update my termux packages abeg", "pkg"},
+		{"commit my code make i push", "git push"},
+	}
+
+	for _, c := range cases {
+		result, err := Detect(c.query)
+		if err != nil {
+			t.Errorf("Detect(%q): unexpected error: %v", c.query, err)
+			continue
+		}
+		if result.Source != "static" {
+			t.Errorf("Detect(%q): source = %q, want static", c.query, result.Source)
+		}
+		if !containsStr(result.Command, c.contains) {
+			t.Errorf("Detect(%q) = %q, want substring %q", c.query, result.Command, c.contains)
+		}
+	}
+}
+
+func TestDetectSlangAndFuzzy(t *testing.T) {
+	cases := []struct {
+		query    string
+		contains string
+	}{
+		{"my phone is acting somehow", "kill"},
+		{"phone is lagging bad", "free"},
+		{"chekc disk space abeg", "df"},
+		{"storage don finish", "df"},
+	}
+	for _, c := range cases {
+		result, err := Detect(c.query)
+		if err != nil {
+			t.Errorf("Detect(%q): %v", c.query, err)
+			continue
+		}
+		if !containsStr(result.Command, c.contains) {
+			t.Errorf("Detect(%q) = %q, want %q", c.query, result.Command, c.contains)
+		}
+	}
+}
+
 func TestSearchTextInFiles(t *testing.T) {
 	result, err := Detect("search for text in files")
 	if err != nil {

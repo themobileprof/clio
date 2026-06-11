@@ -53,7 +53,7 @@ func Tokenize(input string) []string {
 
 	for _, t := range raw {
 		t = strings.Trim(t, "?!.,;:\"'()")
-		if t == "" || conversationalStopwords[t] {
+		if t == "" || conversationalStopwords[t] || nigerianStopwords[t] {
 			continue
 		}
 		stemmed := Stem(t)
@@ -85,6 +85,8 @@ func TokenSet(input string) map[string]bool {
 			set[noun] = true
 		}
 	}
+	applyPidginAliases(set)
+	applySlangExpansions(set)
 	return set
 }
 

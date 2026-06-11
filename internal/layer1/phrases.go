@@ -74,6 +74,80 @@ var PhraseCatalog = []phraseRule{
 	{[]string{"chek", "memory"}, CommandEntry{"free -h", "Check memory usage"}},
 	{[]string{"list", "everything"}, CommandEntry{"ls -la", "List everything in this folder"}},
 	{[]string{"delete", "everything"}, CommandEntry{"rm -rf *", "Delete everything here (careful!)"}},
+
+	// Nigerian Pidgin / campus casual — common among students on Termux
+	{[]string{"wetin", "dey"}, CommandEntry{"ls -la", "See what files are here (wetin dey?)"}},
+	{[]string{"wetin", "inside"}, CommandEntry{"ls -la", "See what's inside this folder"}},
+	{[]string{"wetin", "here"}, CommandEntry{"ls -la", "List files here"}},
+	{[]string{"show", "wetin"}, CommandEntry{"ls -la", "Show what is in this folder"}},
+	{[]string{"don", "full"}, CommandEntry{"df -h", "Check storage — device may be full"}},
+	{[]string{"storage", "full"}, CommandEntry{"df -h", "Check phone storage space"}},
+	{[]string{"phone", "full"}, CommandEntry{"df -h", "Check if phone storage is full"}},
+	{[]string{"space", "finish"}, CommandEntry{"df -h", "Check space — storage may be finished"}},
+	{[]string{"no", "space"}, CommandEntry{"df -h", "Check available disk space"}},
+	{[]string{"data", "no", "work"}, CommandEntry{"ping -c 4 google.com", "Test if mobile data is working"}},
+	{[]string{"internet", "no", "work"}, CommandEntry{"ping -c 4 google.com", "Test internet connection"}},
+	{[]string{"network", "no", "work"}, CommandEntry{"ping -c 4 google.com", "Test network connection"}},
+	{[]string{"wifi", "no", "work"}, CommandEntry{"ping -c 4 google.com", "Test WiFi connection"}},
+	{[]string{"data", "not", "working"}, CommandEntry{"ping -c 4 google.com", "Test if data is working"}},
+	{[]string{"internet", "not", "working"}, CommandEntry{"ping -c 4 google.com", "Test internet"}},
+	{[]string{"check", "data"}, CommandEntry{"ping -c 4 google.com", "Check if data/internet works"}},
+	{[]string{"app", "dey", "jam"}, CommandEntry{"kill", "Stop a jammed app (wetin i go do?)"}},
+	{[]string{"phone", "dey", "jam"}, CommandEntry{"kill", "Stop phone/app that has jammed"}},
+	{[]string{"dey", "hang"}, CommandEntry{"kill", "Stop a hung/frozen app"}},
+	{[]string{"dey", "jam"}, CommandEntry{"kill", "Stop a jammed app"}},
+	{[]string{"app", "jam"}, CommandEntry{"kill", "Force-stop a jammed app"}},
+	{[]string{"phone", "slow"}, CommandEntry{"free -h", "Check memory — phone is running slow"}},
+	{[]string{"no", "gree"}, CommandEntry{"kill", "Force-stop app that won't respond"}},
+	{[]string{"e", "no", "gree"}, CommandEntry{"kill", "Stop program that is not responding"}},
+	{[]string{"comot", "file"}, CommandEntry{"rm", "Remove/delete a file (comot)"}},
+	{[]string{"comot", "folder"}, CommandEntry{"rm -rf", "Remove a folder"}},
+	{[]string{"clear", "file"}, CommandEntry{"rm", "Delete a file"}},
+	{[]string{"clear", "folder"}, CommandEntry{"rm -rf", "Delete a folder"}},
+	{[]string{"send", "file"}, CommandEntry{"scp", "Send file to another device"}},
+	{[]string{"download", "file"}, CommandEntry{"wget", "Download a file"}},
+	{[]string{"download", "something"}, CommandEntry{"wget", "Download a file from the web"}},
+	{[]string{"copy", "file"}, CommandEntry{"cp", "Copy a file"}},
+	{[]string{"move", "file"}, CommandEntry{"mv", "Move a file"}},
+	{[]string{"open", "file"}, CommandEntry{"cat", "Open and view a file"}},
+	{[]string{"see", "file"}, CommandEntry{"cat", "View file contents"}},
+	{[]string{"make", "folder"}, CommandEntry{"mkdir -p", "Create a new folder"}},
+	{[]string{"create", "folder"}, CommandEntry{"mkdir -p", "Create a folder"}},
+	{[]string{"new", "folder"}, CommandEntry{"mkdir -p", "Create a new folder"}},
+
+	// coding / schoolwork — Nigerian CS students on Termux
+	{[]string{"install", "python"}, CommandEntry{"pkg install python", "Install Python on Termux"}},
+	{[]string{"install", "git"}, CommandEntry{"pkg install git", "Install Git"}},
+	{[]string{"install", "node"}, CommandEntry{"pkg install nodejs", "Install Node.js"}},
+	{[]string{"clone", "project"}, CommandEntry{"git clone", "Clone a project from GitHub"}},
+	{[]string{"clone", "repo"}, CommandEntry{"git clone", "Clone a repository"}},
+	{[]string{"push", "code"}, CommandEntry{"git push", "Push code to GitHub"}},
+	{[]string{"commit", "code"}, CommandEntry{`git commit -m "update"`, "Save/commit your code changes"}},
+	{[]string{"run", "code"}, CommandEntry{"python script.py", "Run your Python code"}},
+	{[]string{"run", "script"}, CommandEntry{"./script.sh", "Run a script"}},
+	{[]string{"lecture", "note"}, CommandEntry{`find . -name "*.pdf"`, "Find lecture notes (PDF)"}},
+	{[]string{"find", "assignment"}, CommandEntry{`find . -name "*assignment*"`, "Find assignment files"}},
+	{[]string{"find", "project"}, CommandEntry{"find . -type d -name '*project*'", "Find project folders"}},
+	{[]string{"update", "packages"}, CommandEntry{"pkg upgrade", "Update installed packages"}},
+	{[]string{"update", "termux"}, CommandEntry{"pkg upgrade", "Update Termux packages"}},
+	{[]string{"make", "executable"}, CommandEntry{"chmod +x", "Make a script runnable"}},
+
+	// more casual English as spoken on Nigerian campuses
+	{[]string{"abeg", "show"}, CommandEntry{"ls -la", "Please show files (abeg show)"}},
+	{[]string{"how", "copy"}, CommandEntry{"cp", "How to copy files"}},
+	{[]string{"how", "delete"}, CommandEntry{"rm", "How to delete a file"}},
+	{[]string{"how", "move"}, CommandEntry{"mv", "How to move files"}},
+	{[]string{"how", "install"}, CommandEntry{"pkg install", "How to install a package"}},
+	{[]string{"my", "files"}, CommandEntry{"ls -la", "List your files"}},
+	{[]string{"see", "hidden"}, CommandEntry{"ls -la", "See hidden files"}},
+	{[]string{"battery", "level"}, CommandEntry{"termux-battery-status", "Check battery level on phone"}},
+
+	// slang / indirect phrasing (synonym-expanded)
+	{[]string{"phone", "acting"}, CommandEntry{"kill", "Stop misbehaving app"}},
+	{[]string{"app", "acting"}, CommandEntry{"kill", "Stop misbehaving app"}},
+	{[]string{"acting", "somehow"}, CommandEntry{"ps aux", "See what is running"}},
+	{[]string{"phone", "lagging"}, CommandEntry{"free -h", "Check memory — phone is lagging"}},
+	{[]string{"storage", "finish"}, CommandEntry{"df -h", "Check storage — may be full"}},
 }
 
 // MatchPhrase finds the best phrase-rule match for conversational input.
@@ -121,6 +195,7 @@ func phraseTokenSet(input string) map[string]bool {
 			set[v] = true
 		}
 	}
+	applyPidginAliases(set)
 	return set
 }
 

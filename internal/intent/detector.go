@@ -7,17 +7,17 @@ import (
 	"clio/internal/layer3"
 	"clio/internal/layer4"
 	"fmt"
+	"strings"
 )
 
 type DetectionResult struct {
 	Command     string
 	Description string
-	Source      string // "static", "man", "module", "remote"
+	Source      string // "static", "fuzzy", "man", "module", "remote", "remote-cached"
 	Confidence  float64
 }
 
 // Detect determines the best command for natural-language input.
-// Layer 1 tries conversational phrases first, then full-sentence catalog scoring.
 func Detect(input string) (*DetectionResult, error) {
 	if result, ok := detectStatic(input); ok {
 		return result, nil
@@ -25,28 +25,24 @@ func Detect(input string) (*DetectionResult, error) {
 
 	keywords := IsolateKeywords(input)
 	if len(keywords) == 0 {
-		return nil, fmt.Errorf("no keywords found")
+		return tryRemote(input)
 	}
 
-	lite := config.IsLiteProfile()
-
-	// Layer 2: Man Pages — skipped on lite profile
-	if !lite {
+	// Layer 2: man pages — skipped on lite profile (subprocess heavy)
+	if !config.IsLiteProfile() {
 		manResults := layer2.Search(keywords)
-		if len(manResults) > 0 {
+		if len(manResults) > 0 && manResults[0].Score > 10 {
 			top := manResults[0]
-			if top.Score > 10 {
-				return &DetectionResult{
-					Command:     top.Name,
-					Description: top.Description,
-					Source:      "man",
-					Confidence:  0.8,
-				}, nil
-			}
+			return &DetectionResult{
+				Command:     top.Name,
+				Description: top.Description,
+				Source:      "man",
+				Confidence:  0.8,
+			}, nil
 		}
 	}
 
-	// Layer 3: Local modules
+	// Layer 3: local automation modules
 	modules, err := layer3.SearchModules(keywords)
 	if err == nil && len(modules) > 0 {
 		top := modules[0]
@@ -58,48 +54,80 @@ func Detect(input string) (*DetectionResult, error) {
 		}, nil
 	}
 
-	// Layer 4: Remote API — skipped on lite profile
-	if !lite {
-		remoteResults, err := layer4.Search(input)
-		if err == nil && len(remoteResults) > 0 {
-			top := remoteResults[0]
-			return &DetectionResult{
-				Command:     top.Name,
-				Description: top.Description + "\nUsage: " + top.Usage,
-				Source:      "remote",
-				Confidence:  0.7,
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no match found")
+	return tryRemote(input)
 }
 
 func detectStatic(input string) (*DetectionResult, bool) {
-	// 1. Idiomatic full-sentence phrases ("where am I", "how much memory")
 	if entry, ok := layer1.MatchPhrase(input); ok {
-		return staticResult(entry, 0.98), true
+		return staticResult(entry, "static", 0.98), true
 	}
-
-	// 2. Score the whole sentence against the verb-noun catalog
 	if entry, ok := layer1.MatchCatalog(input); ok {
-		return staticResult(entry, 0.95), true
+		return staticResult(entry, "static", 0.95), true
 	}
-
-	// 3. Classic verb+noun parse for short queries
 	verb, noun := layer1.ParseIntent(input)
 	if entry, ok := layer1.LookupVerbNoun(verb, noun); ok {
-		return staticResult(entry, 1.0), true
+		return staticResult(entry, "static", 1.0), true
+	}
+
+	// Fuzzy + slang expansion — conservative retry before network
+	if entry, kind, ok := layer1.MatchWithFuzzy(input); ok {
+		conf := 0.88
+		if kind == "phrase" {
+			conf = 0.92
+		}
+		return staticResult(entry, "fuzzy", conf), true
 	}
 
 	return nil, false
 }
 
-func staticResult(entry layer1.CommandEntry, confidence float64) *DetectionResult {
+func tryRemote(input string) (*DetectionResult, error) {
+	if !config.ShouldUseRemote() {
+		return nil, fmt.Errorf("no match found")
+	}
+
+	remoteResults, err := layer4.Search(input)
+	if err != nil || len(remoteResults) == 0 {
+		return nil, fmt.Errorf("no match found")
+	}
+
+	top := remoteResults[0]
+	if isWeakRemoteResult(top) {
+		return nil, fmt.Errorf("no match found")
+	}
+
+	source := "remote"
+	if top.Cached {
+		source = "remote-cached"
+	}
+
+	desc := top.Description
+	if top.Usage != "" {
+		desc = strings.TrimSpace(desc + "\nUsage: " + top.Usage)
+	}
+
+	return &DetectionResult{
+		Command:     top.Name,
+		Description: desc,
+		Source:      source,
+		Confidence:  0.7,
+	}, nil
+}
+
+// isWeakRemoteResult filters generic clipilot fallbacks that cause false positives.
+func isWeakRemoteResult(r layer4.CommandResult) bool {
+	name := strings.ToLower(strings.TrimSpace(r.Name))
+	if name == "echo" && strings.Contains(strings.ToLower(r.Description), "line of text") {
+		return true
+	}
+	return name == ""
+}
+
+func staticResult(entry layer1.CommandEntry, source string, confidence float64) *DetectionResult {
 	return &DetectionResult{
 		Command:     entry.Cmd,
 		Description: entry.Desc,
-		Source:      "static",
+		Source:      source,
 		Confidence:  confidence,
 	}
 }

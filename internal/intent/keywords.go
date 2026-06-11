@@ -1,65 +1,62 @@
 package intent
 
 import (
+	"clio/internal/layer1"
 	"strings"
 )
 
-// IsolateKeywords extracts the core search terms from a natural language query.
+// IsolateKeywords extracts meaningful search terms from a natural language query.
 func IsolateKeywords(input string) []string {
-	// 1. Tokenization
-	tokens := strings.Fields(strings.ToLower(input))
-
-	// 2. Stopword Removal
-	stopwords := map[string]bool{
-		"i": true, "want": true, "to": true, "how": true, "do": true,
-		"can": true, "you": true, "please": true, "the": true, "a": true,
-		"an": true, "is": true, "of": true, "in": true, "on": true,
-		"for": true, "and": true, "or": true, "with": true, "help": true,
-		"me": true, "all": true,
+	tokens := layer1.Tokenize(input)
+	if len(tokens) == 0 {
+		return nil
 	}
 
-	var keywords []string
+	// Drop extra conversational filler not already removed by Tokenize.
+	extraStop := map[string]bool{
+		"do": true, "how": true, "what": true, "where": true, "when": true,
+		"why": true, "there": true, "here": true, "my": true, "out": true,
+	}
+
+	out := make([]string, 0, len(tokens))
 	for _, token := range tokens {
-		// Clean punctuation
-		token = strings.Trim(token, "?!.,;:\"'()")
-		if token == "" {
+		if extraStop[token] {
 			continue
 		}
-		if !stopwords[token] {
-			keywords = append(keywords, token)
-		}
+		out = append(out, token)
 	}
-    
-    // 3. Synonym Expansion (Basic)
-    // Map common verbs to system terms if needed, 
-    // although Layer 1 PreProcess also handles some of this.
-    // For search, we might want to keep original or expand.
-    // Let's keep it simple for now as per guide.
-    
-    // Limit to top keywords if too many?
-    // Guide example: "How do I duplicate a directory?" -> ["duplicate", "directory"] -> ["copy", "directory"]
-    
-    finalKeywords := make([]string, 0, len(keywords))
-    verbMap := map[string]string{
-        "duplicate": "cp",
-        "copy":      "cp",
-        "move":      "mv",
-        "rename":    "mv",
-        "remove":    "rm",
-        "delete":    "rm",
-        "list":      "ls",
-        "show":      "ls", // context dependent, but often ls
-        "change":    "cd",
-        "folder":    "directory",
-    }
-    
-    for _, k := range keywords {
-        if val, ok := verbMap[k]; ok {
-            finalKeywords = append(finalKeywords, val)
-        } else {
-            finalKeywords = append(finalKeywords, k)
-        }
-    }
+	if len(out) == 0 {
+		return expandKeywordSynonyms(tokens)
+	}
+	return expandKeywordSynonyms(out)
+}
 
-	return finalKeywords
+// Legacy helper kept for tests that expect verb synonym expansion in keywords.
+func expandKeywordSynonyms(keywords []string) []string {
+	verbMap := map[string]string{
+		"duplicate": "cp",
+		"copy":      "cp",
+		"move":      "mv",
+		"rename":    "mv",
+		"remove":    "rm",
+		"delete":    "rm",
+		"list":      "ls",
+		"show":      "ls",
+		"folder":    "directory",
+	}
+
+	seen := make(map[string]bool, len(keywords))
+	out := make([]string, 0, len(keywords))
+	for _, k := range keywords {
+		k = strings.ToLower(k)
+		if val, ok := verbMap[k]; ok {
+			k = val
+		}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	return out
 }

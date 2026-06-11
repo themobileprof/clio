@@ -57,10 +57,8 @@ func InitBuiltinModules() error {
 			continue
 		}
 
-		// Check if already in DB
-		existing, err := layer3.GetModuleByID(module.ID)
-		if err == nil && existing != "" {
-			// Already exists, skip
+		exists, err := layer3.ModuleExists(module.ID)
+		if err == nil && exists {
 			continue
 		}
 
@@ -93,16 +91,13 @@ func InitBuiltinModules() error {
 	return nil
 }
 
-// EnsureBuiltinModulesLoaded checks if builtin modules are loaded and loads them if not
+// EnsureBuiltinModulesLoaded checks if builtin modules are loaded and loads them if not.
+// Uses a lightweight EXISTS query instead of loading full YAML content.
 func EnsureBuiltinModulesLoaded() error {
-	// Check if termux_setup exists
-	_, err := layer3.GetModuleByID("termux_setup")
-	if err == nil {
-		// Already loaded
+	exists, err := layer3.ModuleExists("termux_setup")
+	if err == nil && exists {
 		return nil
 	}
-
-	// Load builtin modules
 	return InitBuiltinModules()
 }
 

@@ -2,6 +2,7 @@ package repl
 
 import (
 	"bufio"
+	"clio/internal/config"
 	"clio/internal/intent"
 	"clio/internal/modules"
 	"clio/internal/safeexec"
@@ -11,16 +12,18 @@ import (
 	"strings"
 )
 
+const maxInputBytes = 4096
+
 // Run starts the REPL loop
 func Run() {
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("CLIPilot Client (Offline First) - Type 'exit' to quit.")
-	fmt.Println("-----------------------------------------------------")
+	scanner.Buffer(make([]byte, 1024), maxInputBytes)
 
-	// Initialize builtin modules (extracts embedded YAML and loads into DB)
-	if err := modules.EnsureBuiltinModulesLoaded(); err != nil {
-		fmt.Printf("Warning: Failed to load builtin modules: %v\n", err)
+	fmt.Println("CLIPilot Client (Offline First) - Type 'exit' to quit.")
+	if config.IsLiteProfile() {
+		fmt.Println("Profile: lite (offline layers 1+3 only — use 'sync full' for all modules)")
 	}
+	fmt.Println("-----------------------------------------------------")
 
 	// Check if on Termux and setup is needed
 	if setup.IsTermux() && !setup.IsSetupComplete() {
@@ -50,6 +53,9 @@ func Run() {
 			continue
 		}
 		if input == "setup" {
+			if err := modules.EnsureBuiltinModulesLoaded(); err != nil {
+				fmt.Printf("Warning: Failed to load builtin modules: %v\n", err)
+			}
 			fmt.Println("╔══════════════════════════════════════════════════════════╗")
 			fmt.Println("║       🚀 Module Execution                                ║")
 			fmt.Println("╚══════════════════════════════════════════════════════════╝")
@@ -68,8 +74,14 @@ func Run() {
 			fmt.Println("(Run 'sync' first if you haven't already)")
 			continue
 		}
-		if input == "sync" {
-			if err := modules.Sync(); err != nil {
+		if input == "sync" || input == "sync full" || input == "sync --full" {
+			var err error
+			if input == "sync full" || input == "sync --full" {
+				err = modules.SyncFull()
+			} else {
+				err = modules.Sync()
+			}
+			if err != nil {
 				fmt.Printf("Sync error: %v\n", err)
 			}
 			continue

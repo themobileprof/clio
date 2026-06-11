@@ -100,6 +100,8 @@ var VerbNounCatalog = map[string]map[string]CommandEntry{
         "calendar":  {"cal", "View calendar"},
         "date":      {"date", "View current date and time"},
         "path":      {"pwd", "View current working directory"},
+        "directory": {"pwd", "View current directory path"},
+        "folder":    {"pwd", "View current folder path"},
     },
     "edit": {
         "file":      {"nano", "Edit file with nano"},
@@ -188,7 +190,6 @@ var NounAliases = map[string]string{
     "img": "file", "image": "file", "video": "file",
     "connection": "network", "wifi": "network", "net": "network",
     "storage": "disk", "hdd": "disk", "ssd": "disk",
-    "usage": "memory",
     "addr": "ip", "address": "ip",
 }
 
@@ -215,62 +216,67 @@ func ParseIntent(input string) (string, string) {
         }
     }
     
-    // Attempt to identify noun (any word after verb ideally, or anywhere)
+    // Collect noun candidates; prefer specific nouns over generic "file"
+    bestRank := 0
     for _, t := range tokens {
         stemmed := Stem(t)
-        // Skip if it's the verb we just found
-        if stemmed == verb || VerbAliases[stemmed] == verb { 
-             continue 
+        if stemmed == verb || VerbAliases[stemmed] == verb {
+            continue
         }
-        
-        // Direct Noun Alias check
+
+        candidate := stemmed
         if n, ok := NounAliases[stemmed]; ok {
-            noun = n
-            break 
+            candidate = n
         }
-        
-        // ...
-        // Check if this noun exists in the verb's map
+
+        rank := 1
+        if specificNouns[candidate] {
+            rank = 3
+        }
         if verb != "" {
-            if _, ok := VerbNounCatalog[verb][stemmed]; ok {
-                noun = stemmed
-                break
+            if _, ok := VerbNounCatalog[verb][candidate]; ok {
+                if rank > bestRank {
+                    bestRank = rank
+                    noun = candidate
+                }
             }
-        }
-    }
-    
-    // Default fallback if only verb found
-    if verb != "" && noun == "" {
-        // Can we guess a default noun? 
-        // e.g. "list" -> "file" matches "ls"
-        if _, ok := VerbNounCatalog[verb]["file"]; ok {
-            return verb, "file"
         }
     }
 
     return verb, noun
 }
 
-// Stem is a very simple stemmer for common suffixes
+// Stem normalizes a word for catalog and phrase matching.
 func Stem(word string) string {
     word = strings.TrimSpace(word)
-    // Special cases for irregular verbs if needed, but keeping it simple
+    if mapped, ok := irregularForms[word]; ok {
+        return mapped
+    }
     if word == "copied" {
         return "copy"
     }
-    
-    if strings.HasSuffix(word, "ing") {
-        return word[:len(word)-3]
+    if strings.HasSuffix(word, "ing") && len(word) > 5 {
+        base := word[:len(word)-3]
+        if mapped, ok := irregularForms[word]; ok {
+            return mapped
+        }
+        // running -> runn; try dropping doubled consonant
+        if len(base) > 2 && base[len(base)-1] == base[len(base)-2] {
+            return base[:len(base)-1]
+        }
+        return base
     }
-    if strings.HasSuffix(word, "ed") {
+    if strings.HasSuffix(word, "ed") && len(word) > 4 {
         return word[:len(word)-2]
     }
-    // "status" -> ends in "s", not "ss". logic was word[:len-1] -> "statu".
-    // We want to avoid stripping 's' if the word key is 'status'.
-    // Or we just map "status" -> "status" in aliases?
-    // Let's protect "status" or just change the generic 's' rule to be safer?
+    if strings.HasSuffix(word, "es") && len(word) > 4 {
+        singular := word[:len(word)-2]
+        if _, ok := irregularForms[word]; !ok {
+            return singular
+        }
+    }
     if strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") && len(word) > 3 {
-        if word == "status" || word == "alias" { // exceptions
+        if word == "status" || word == "alias" {
             return word
         }
         return word[:len(word)-1]

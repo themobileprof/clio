@@ -12,13 +12,8 @@ func TestStem(t *testing.T) {
         {"listing", "list"},
         {"copied", "copy"}, // our simple stemmer handles 'ed' -> trim 2
         {"files", "file"},
-        {"running", "runn"}, // "run" + "ning", simple stemmer is extremely basic: len-3
-        // wait, Stem("running") -> "runn"? Let's check logic: suffix "ing"
-        // logic: word[:len(word)-3]
-        // "running" -> "runn". Ideally "run". But for "listing" -> "list". 
-        // "searching" -> "search". 
-        // "copying" -> "copy".
-        // It's a heuristic.
+        {"running", "run"},
+        {"processes", "process"},
         {"status", "status"}, // "status" is now preserved as exception
         // Wait, logic: HasSuffix("s") && !HasSuffix("ss") -> trim 1.
         // "status" -> "statu".

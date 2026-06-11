@@ -124,7 +124,7 @@ set -euo pipefail
 
 MODULE_ID="${1:-}"
 FLOW_NAME="${2:-setup}"
-DB_PATH="${HOME}/.clio/modules.db"
+DB_PATH="${HOME}/.clio/clio.db"
 
 if [ -z "$MODULE_ID" ]; then
     echo "Usage: clio-run-module <module_id> [flow_name]"

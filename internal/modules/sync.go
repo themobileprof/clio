@@ -14,6 +14,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const maxModuleBytes = 2 << 20 // 2 MiB per module — prevents OOM on small devices
+
+var syncHTTP = &http.Client{Timeout: 30 * time.Second}
+
 const (
 	RepoOwner   = "themobileprof"
 	RepoName    = "clipilot"
@@ -50,19 +54,46 @@ type ModuleYAML struct {
 	// unless we want to execute them later (we store full content anyway)
 }
 
-// Sync downloads modules from CLIPilot registry or falls back to GitHub
+// Sync downloads modules using the active profile (lite on Termux skips non-essential modules).
 func Sync() error {
-	// Try registry first
-	if err := SyncFromRegistry(); err != nil {
+	return SyncWithOptions(false)
+}
+
+// SyncFull downloads every module regardless of profile.
+func SyncFull() error {
+	return SyncWithOptions(true)
+}
+
+// SyncWithOptions controls whether the full module catalog is synced.
+func SyncWithOptions(full bool) error {
+	lite := !full && config.IsLiteProfile()
+	if lite {
+		fmt.Println("📱 Lite sync (Termux/low-memory) — essential modules only.")
+		fmt.Println("   Use 'sync full' to download the complete catalog.")
+		if err := EnsureBuiltinModulesLoaded(); err != nil {
+			fmt.Printf("Warning: builtin modules: %v\n", err)
+		}
+	}
+
+	if err := SyncFromRegistry(lite); err != nil {
 		fmt.Printf("⚠️  Registry sync failed: %v\n", err)
 		fmt.Println("📦 Falling back to GitHub...")
-		return SyncFromGitHub()
+		return SyncFromGitHub(lite)
 	}
 	return nil
 }
 
+// isEssentialModule returns true for modules needed on constrained Termux devices.
+func isEssentialModule(moduleID string) bool {
+	if moduleID == "termux_setup" {
+		return true
+	}
+	lower := strings.ToLower(moduleID)
+	return strings.Contains(lower, "termux") || strings.Contains(lower, "android")
+}
+
 // SyncFromRegistry downloads modules from CLIPilot registry using delta sync
-func SyncFromRegistry() error {
+func SyncFromRegistry(lite bool) error {
 	registryURL := config.GetRegistryURL()
 	fmt.Println("🔄 Syncing modules from registry...")
 
@@ -76,8 +107,7 @@ func SyncFromRegistry() error {
 	url := fmt.Sprintf("%s/api/v1/modules/changed?since=%s",
 		registryURL, lastSync.Format(time.RFC3339))
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := syncHTTP.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to registry: %w", err)
 	}
@@ -93,7 +123,13 @@ func SyncFromRegistry() error {
 	}
 
 	count := 0
+	skipped := 0
 	for _, mod := range changedResp.ChangedModules {
+		if lite && !isEssentialModule(mod.ID) {
+			skipped++
+			continue
+		}
+
 		// Check if we need to download (checksum differs)
 		localChecksum, err := layer3.GetModuleChecksum(mod.ID)
 		if err == nil && localChecksum == mod.ChecksumSHA256 {
@@ -117,7 +153,11 @@ func SyncFromRegistry() error {
 		fmt.Printf("Warning: failed to save sync timestamp: %v\n", err)
 	}
 
-	fmt.Printf("✅ Sync complete. Updated %d modules.\n", count)
+	if lite && skipped > 0 {
+		fmt.Printf("✅ Lite sync complete. Updated %d modules (%d skipped).\n", count, skipped)
+	} else {
+		fmt.Printf("✅ Sync complete. Updated %d modules.\n", count)
+	}
 	return nil
 }
 
@@ -125,8 +165,7 @@ func SyncFromRegistry() error {
 func downloadAndSaveModule(registryURL, moduleID string) error {
 	url := fmt.Sprintf("%s/api/v1/modules/%s/download", registryURL, moduleID)
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := syncHTTP.Get(url)
 	if err != nil {
 		return err
 	}
@@ -136,12 +175,14 @@ func downloadAndSaveModule(registryURL, moduleID string) error {
 		return fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxModuleBytes))
 	if err != nil {
 		return err
 	}
+	if len(body) == maxModuleBytes {
+		return fmt.Errorf("module exceeds %d byte limit", maxModuleBytes)
+	}
 
-	// Calculate checksum
 	hash := sha256.Sum256(body)
 	checksum := fmt.Sprintf("%x", hash)
 
@@ -170,7 +211,7 @@ func downloadAndSaveModule(registryURL, moduleID string) error {
 }
 
 // SyncFromGitHub downloads modules from GitHub (fallback method)
-func SyncFromGitHub() error {
+func SyncFromGitHub(lite bool) error {
 	fmt.Println("🔄 Syncing modules from remote...")
 
 	// 1. List modules directory
@@ -191,8 +232,15 @@ func SyncFromGitHub() error {
 	}
 
 	count := 0
+	skipped := 0
 	for _, item := range contents {
 		if item.Type != "file" || !strings.HasSuffix(item.Name, ".yaml") {
+			continue
+		}
+
+		moduleID := strings.TrimSuffix(item.Name, ".yaml")
+		if lite && !isEssentialModule(moduleID) {
+			skipped++
 			continue
 		}
 
@@ -206,20 +254,27 @@ func SyncFromGitHub() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	fmt.Printf("✅ Sync complete. Updated %d modules.\n", count)
+	if lite && skipped > 0 {
+		fmt.Printf("✅ Lite sync complete. Updated %d modules (%d skipped).\n", count, skipped)
+	} else {
+		fmt.Printf("✅ Sync complete. Updated %d modules.\n", count)
+	}
 	return nil
 }
 
 func processModule(url string) error {
-	resp, err := http.Get(url)
+	resp, err := syncHTTP.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxModuleBytes))
 	if err != nil {
 		return err
+	}
+	if len(body) == maxModuleBytes {
+		return fmt.Errorf("module exceeds %d byte limit", maxModuleBytes)
 	}
 
 	var mod ModuleYAML

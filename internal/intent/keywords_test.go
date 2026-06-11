@@ -11,9 +11,7 @@ func TestIsolateKeywords(t *testing.T) {
         Expected []string
     }{
         {"How do I copy a file?", []string{"cp", "file"}}, // "copy" mapped to "cp"
-        {"List all running processes", []string{"ls", "running", "processes"}}, 
-        // "list" -> "ls". "running", "processes" kept.
-        // Wait, intent/keywords.go map has "list" -> "ls".
+        {"List all running processes", []string{"ls", "all", "run", "process"}},
         {"duplicate directory", []string{"cp", "directory"}},
     }
 

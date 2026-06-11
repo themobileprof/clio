@@ -1,9 +1,9 @@
 package layer3
 
 import (
+	"clio/internal/config"
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -29,20 +29,29 @@ var (
 // GetDB returns the singleton DB instance, initializing it lazily.
 func GetDB() (*sql.DB, error) {
 	dbOnce.Do(func() {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			dbErr = err
+		dbPath := config.GetDBPath()
+		if dbPath == "" {
+			dbErr = fmt.Errorf("could not resolve database path")
 			return
 		}
-
-		dbPath := filepath.Join(home, ".clio", "clio.db")
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 			dbErr = err
 			return
 		}
 
+		migrateLegacyDB(dbPath)
+
 		db, err := sql.Open("sqlite", dbPath)
 		if err != nil {
+			dbErr = err
+			return
+		}
+
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+
+		if err := configureSQLite(db); err != nil {
+			db.Close()
 			dbErr = err
 			return
 		}
@@ -56,6 +65,45 @@ func GetDB() (*sql.DB, error) {
 		dbInstance = db
 	})
 	return dbInstance, dbErr
+}
+
+// migrateLegacyDB renames ~/.clio/modules.db to clio.db for older installs.
+func migrateLegacyDB(dbPath string) {
+	if _, err := os.Stat(dbPath); err == nil {
+		return
+	}
+	legacy := filepath.Join(filepath.Dir(dbPath), "modules.db")
+	if _, err := os.Stat(legacy); err != nil {
+		return
+	}
+	_ = os.Rename(legacy, dbPath)
+}
+
+func configureSQLite(db *sql.DB) error {
+	pragmas := []string{
+		"PRAGMA foreign_keys = ON",
+	}
+	if config.IsLiteProfile() {
+		// Tight limits for 2 GB Termux devices
+		pragmas = append(pragmas,
+			"PRAGMA cache_size = -512",  // 512 KiB page cache
+			"PRAGMA mmap_size = 0",      // disable memory-mapped I/O
+			"PRAGMA journal_mode = DELETE",
+			"PRAGMA synchronous = NORMAL",
+			"PRAGMA temp_store = FILE",
+		)
+	} else {
+		pragmas = append(pragmas,
+			"PRAGMA cache_size = -2000",
+			"PRAGMA journal_mode = WAL",
+		)
+	}
+	for _, p := range pragmas {
+		if _, err := db.Exec(p); err != nil {
+			return fmt.Errorf("sqlite pragma %q: %w", p, err)
+		}
+	}
+	return nil
 }
 
 func initSchema(db *sql.DB) error {
@@ -77,6 +125,8 @@ func initSchema(db *sql.DB) error {
 		id INTEGER PRIMARY KEY CHECK (id = 1),
 		last_sync_timestamp TIMESTAMP
 	);
+
+	CREATE INDEX IF NOT EXISTS idx_modules_search ON modules(name, tags);
 	`
 	_, err := db.Exec(query)
 	if err != nil {
@@ -131,6 +181,20 @@ func UpsertModuleWithChecksum(modID, name, desc, tags, version, content, bashScr
 	return err
 }
 
+// ModuleExists reports whether a module ID is present (metadata only, no content load).
+func ModuleExists(moduleID string) (bool, error) {
+	db, err := GetDB()
+	if err != nil {
+		return false, err
+	}
+	var n int
+	err = db.QueryRow("SELECT 1 FROM modules WHERE module_id = ? LIMIT 1", moduleID).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // GetModuleChecksum returns the stored checksum for a module
 func GetModuleChecksum(moduleID string) (string, error) {
 	db, err := GetDB()
@@ -180,14 +244,23 @@ func SaveLastSyncTimestamp(t time.Time) error {
 }
 
 // SearchModules searches the database for modules matching the given keywords.
+// Only metadata columns are read — never loads YAML content or bash_script.
 func SearchModules(keywords []string) ([]Module, error) {
+	if len(keywords) == 0 {
+		return nil, nil
+	}
+
 	db, err := GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	// Simple search: check if any keyword matches description, name or tags
-	query := "SELECT id, name, description, '', tags FROM modules WHERE "
+	// Cap keywords on lite profile to reduce query size
+	if config.IsLiteProfile() && len(keywords) > 2 {
+		keywords = keywords[:2]
+	}
+
+	query := "SELECT id, name, description, module_id, tags FROM modules WHERE "
 	args := []interface{}{}
 
 	for i, kw := range keywords {
@@ -199,12 +272,10 @@ func SearchModules(keywords []string) ([]Module, error) {
 		args = append(args, term, term, term)
 	}
 
-	// Limit results
-	query += " LIMIT 5"
+	query += " LIMIT 3"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		log.Printf("Query error: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -212,11 +283,12 @@ func SearchModules(keywords []string) ([]Module, error) {
 	var modules []Module
 	for rows.Next() {
 		var m Module
-		var tags string
-		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &m.Command, &tags); err != nil {
+		var modID, tags string
+		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &modID, &tags); err != nil {
 			continue
 		}
-		m.Keywords = tags // Mapping tags to keywords struct field
+		m.Command = "clio-run-module " + modID
+		m.Keywords = tags
 		modules = append(modules, m)
 	}
 	return modules, nil

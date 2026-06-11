@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"clio/internal/platform"
 	"os"
 	"path/filepath"
 )
@@ -9,9 +10,9 @@ import (
 // This file now only contains utility functions used by the YAML executor.
 // See YAML_MODULE_SYSTEM.md for documentation on the new module system.
 
-// IsTermux checks if we're running on Termux
+// IsTermux checks if we're running on Termux.
 func IsTermux() bool {
-	return os.Getenv("TERMUX_VERSION") != ""
+	return platform.IsTermux()
 }
 
 // IsSetupComplete checks if the setup has been completed

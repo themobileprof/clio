@@ -1,7 +1,7 @@
 package config
 
 import (
-	"clio/internal/setup"
+	"clio/internal/platform"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -128,7 +128,7 @@ func EffectiveProfile() Profile {
 	case ProfileFull:
 		return ProfileFull
 	default:
-		if setup.IsLowMemoryDevice() {
+		if platform.IsLowMemoryDevice() {
 			return ProfileLite
 		}
 		return ProfileFull

@@ -1,7 +1,7 @@
 package layer3
 
 import (
-	"clio/internal/config"
+	"clio/internal/platform"
 	"database/sql"
 	"fmt"
 	"os"
@@ -38,7 +38,7 @@ var (
 // GetDB returns the singleton DB instance, initializing it lazily.
 func GetDB() (*sql.DB, error) {
 	dbOnce.Do(func() {
-		dbPath := config.GetDBPath()
+		dbPath := platform.DBPath()
 		if dbPath == "" {
 			dbErr = fmt.Errorf("could not resolve database path")
 			return
@@ -92,7 +92,7 @@ func configureSQLite(db *sql.DB) error {
 	pragmas := []string{
 		"PRAGMA foreign_keys = ON",
 	}
-	if config.IsLiteProfile() {
+	if platform.IsLiteProfile() {
 		// Tight limits for 2 GB Termux devices
 		pragmas = append(pragmas,
 			"PRAGMA cache_size = -512",  // 512 KiB page cache
@@ -308,7 +308,7 @@ func SearchModules(keywords []string) ([]Module, error) {
 	}
 
 	// Cap keywords on lite profile to reduce query size
-	if config.IsLiteProfile() && len(keywords) > 2 {
+	if platform.IsLiteProfile() && len(keywords) > 2 {
 		keywords = keywords[:2]
 	}
 

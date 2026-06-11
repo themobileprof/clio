@@ -6,6 +6,7 @@ import (
 	"clio/internal/layer2"
 	"clio/internal/layer3"
 	"clio/internal/layer4"
+	"clio/internal/setup"
 	"fmt"
 	"strings"
 )
@@ -13,12 +14,22 @@ import (
 type DetectionResult struct {
 	Command     string
 	Description string
-	Source      string // "static", "fuzzy", "man", "module", "remote", "remote-cached"
+	Source      string // "setup", "static", "fuzzy", "man", "module", "remote", "remote-cached"
 	Confidence  float64
 }
 
 // Detect determines the best command for natural-language input.
 func Detect(input string) (*DetectionResult, error) {
+	// Layer 0: Termux setup wizard (first-class command)
+	if setup.IsSetupRequest(input) {
+		return &DetectionResult{
+			Command:     setup.RunCommand(),
+			Description: setup.ShortDescription(),
+			Source:      "setup",
+			Confidence:  1.0,
+		}, nil
+	}
+
 	if result, ok := detectStatic(input); ok {
 		return result, nil
 	}

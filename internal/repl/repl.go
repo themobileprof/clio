@@ -19,21 +19,7 @@ func Run() {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024), maxInputBytes)
 
-	fmt.Println("CLIPilot Client (Offline First) - Type 'exit' to quit.")
-	if config.IsLiteProfile() {
-		fmt.Println("Profile: lite (offline layers 1+3 only — use 'sync full' for all modules)")
-	}
-	fmt.Println("-----------------------------------------------------")
-
-	// Check if on Termux and setup is needed
-	if setup.IsTermux() && !setup.IsSetupComplete() {
-		fmt.Println("\n💡 First time on Termux?")
-		fmt.Println("   Complete development environment setup:")
-		fmt.Println("   1. Run 'sync' to download modules")
-		fmt.Println("   2. Run: clio-run-module termux_setup setup")
-		fmt.Println("   (Zsh, Vim, Git, LLM, and more)")
-		fmt.Println()
-	}
+	printWelcome()
 
 	for {
 		fmt.Print(">> ")
@@ -52,26 +38,15 @@ func Run() {
 			print("\033[H\033[2J")
 			continue
 		}
-		if input == "setup" {
+		if input == "help" || input == "?" {
+			printHelp()
+			continue
+		}
+		if setup.IsSetupRequest(input) {
 			if err := modules.EnsureBuiltinModulesLoaded(); err != nil {
 				fmt.Printf("Warning: Failed to load builtin modules: %v\n", err)
 			}
-			fmt.Println("╔══════════════════════════════════════════════════════════╗")
-			fmt.Println("║       🚀 Module Execution                                ║")
-			fmt.Println("╚══════════════════════════════════════════════════════════╝")
-			fmt.Println()
-			fmt.Println("Module workflows are executed via the clio-run-module script.")
-			fmt.Println()
-			fmt.Println("Run this command:")
-			if setup.IsTermux() {
-				fmt.Println("  clio-run-module termux_setup setup")
-			} else {
-				fmt.Println("  clio-run-module <module_id> [flow_name]")
-				fmt.Println()
-				fmt.Println("Example: clio-run-module my_workflow setup")
-			}
-			fmt.Println()
-			fmt.Println("(Run 'sync' first if you haven't already)")
+			setup.ShowGuide()
 			continue
 		}
 		if input == "sync" || input == "sync full" || input == "sync --full" {
@@ -87,15 +62,60 @@ func Run() {
 			continue
 		}
 
-		// Intent Detection
 		result, err := intent.Detect(input)
 		if err != nil {
 			fmt.Printf("⚠ No matching command found for '%s'. Try rephrasing.\n", input)
+			if setup.IsTermux() {
+				fmt.Println("   Or type 'setup' to configure your Termux dev environment.")
+			}
+			continue
+		}
+
+		if result.Source == "setup" {
+			setup.ShowGuide()
 			continue
 		}
 
 		handleResult(result, scanner)
 	}
+}
+
+func printWelcome() {
+	fmt.Println("CLIPilot Client (Offline First) - Type 'help' or 'exit'")
+	if config.IsLiteProfile() {
+		fmt.Println("Profile: lite (offline layers 1+3 — 'sync full' for all modules)")
+	}
+	fmt.Println("-----------------------------------------------------")
+	if setup.IsTermux() {
+		if !setup.IsSetupComplete() {
+			fmt.Println()
+			setup.ShowGuide()
+		} else {
+			fmt.Println()
+			fmt.Println("⭐ Termux setup: type 'setup' to re-run the dev environment wizard")
+			fmt.Println()
+		}
+	}
+}
+
+func printHelp() {
+	fmt.Println()
+	fmt.Println("Commands:")
+	if setup.IsTermux() {
+		fmt.Println("  setup          ⭐ Termux dev environment wizard (start here)")
+	}
+	fmt.Println("  sync           Download automation modules")
+	fmt.Println("  sync full      Download full module catalog")
+	fmt.Println("  clear          Clear screen")
+	fmt.Println("  help           Show this help")
+	fmt.Println("  exit           Quit")
+	fmt.Println()
+	fmt.Println("Or type any question in plain English / Pidgin:")
+	fmt.Println("  e.g. 'check disk space', 'wetin dey inside folder'")
+	if setup.IsTermux() {
+		fmt.Println("  e.g. 'setup termux', 'configure dev environment'")
+	}
+	fmt.Println()
 }
 
 func handleResult(res *intent.DetectionResult, scanner *bufio.Scanner) {

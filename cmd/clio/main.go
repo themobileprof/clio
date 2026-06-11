@@ -5,6 +5,7 @@ import (
 	"clio/internal/config"
 	"clio/internal/intent"
 	"clio/internal/repl"
+	"clio/internal/setup"
 	"fmt"
 	"os"
 	"runtime"
@@ -47,6 +48,10 @@ func runPipeMode() {
 		input := strings.TrimSpace(scanner.Text())
 		if input == "" {
 			continue
+		}
+		if setup.IsSetupRequest(input) {
+			fmt.Println(setup.RunCommand())
+			return
 		}
 		result, err := intent.Detect(input)
 		if err != nil {

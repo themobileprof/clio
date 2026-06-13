@@ -2,6 +2,7 @@ package layer3
 
 import (
 	"clio/internal/platform"
+	"clio/internal/setup"
 	"database/sql"
 	"fmt"
 	"os"
@@ -339,7 +340,10 @@ func SearchModules(keywords []string) ([]Module, error) {
 		if err := rows.Scan(&m.ID, &m.Name, &m.Description, &modID, &tags); err != nil {
 			continue
 		}
-		m.Command = "clio-run-module " + modID
+		if setup.IsSetupModule(modID) {
+			continue
+		}
+		m.Command = "clio-run-module " + modID + " setup"
 		m.Keywords = tags
 		modules = append(modules, m)
 	}

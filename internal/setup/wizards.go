@@ -109,6 +109,32 @@ func AllWizards() []Wizard {
 	}
 }
 
+// WizardByModuleID returns a wizard by its registry module ID (e.g. termux_setup), or nil.
+func WizardByModuleID(moduleID string) *Wizard {
+	moduleID = strings.ToLower(strings.TrimSpace(moduleID))
+	for _, w := range AllWizards() {
+		if strings.EqualFold(w.ModuleID, moduleID) {
+			copy := w
+			return &copy
+		}
+	}
+	return nil
+}
+
+// ParseRunModuleCommand parses "clio-run-module <module_id> [flow]".
+func ParseRunModuleCommand(input string) (moduleID, flow string, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(input))
+	if len(fields) < 2 || fields[0] != "clio-run-module" {
+		return "", "", false
+	}
+	moduleID = fields[1]
+	flow = "setup"
+	if len(fields) >= 3 {
+		flow = fields[2]
+	}
+	return moduleID, flow, true
+}
+
 // WizardByID returns a wizard by its short ID, or nil.
 func WizardByID(id string) *Wizard {
 	id = strings.ToLower(strings.TrimSpace(id))

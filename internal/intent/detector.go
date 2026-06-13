@@ -20,6 +20,24 @@ type DetectionResult struct {
 
 // Detect determines the best command for natural-language input.
 func Detect(input string) (*DetectionResult, error) {
+	// Literal clio-run-module commands (user pasted from setup guide)
+	if moduleID, flow, ok := setup.ParseRunModuleCommand(input); ok {
+		if w := setup.WizardByModuleID(moduleID); w != nil {
+			return &DetectionResult{
+				Command:     setup.RunCommandFor(*w),
+				Description: w.Description,
+				Source:      "setup",
+				Confidence:  1.0,
+			}, nil
+		}
+		return &DetectionResult{
+			Command:     "clio-run-module " + moduleID + " " + flow,
+			Description: "Automation module workflow",
+			Source:      "module",
+			Confidence:  0.95,
+		}, nil
+	}
+
 	// Layer 0: setup wizards (Termux, Vim, Git, dev tools, databases)
 	if kind, wizard := setup.ResolveSetup(input); kind != setup.MatchNone {
 		if kind == setup.MatchWizard && wizard != nil {

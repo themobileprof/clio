@@ -103,6 +103,9 @@ func Run() {
 			}
 			continue
 		}
+		if handled := handleRunModuleInput(input); handled {
+			continue
+		}
 
 		result, err := intent.Detect(input)
 		if err != nil {
@@ -236,11 +239,50 @@ func printResultHeader(res *intent.DetectionResult) {
 		fmt.Println("   (Not a setup wizard. For install/configure, type 'setup'.)")
 	case "setup", "setup-menu":
 		fmt.Println("⭐ [SETUP WIZARD] — environment install & configure")
+		fmt.Println("   Run in your shell after exiting Clio (type 'exit').")
 	default:
 		fmt.Println("⌨️  [SHELL COMMAND] — run directly in your terminal")
 	}
-	fmt.Println("   Matched from your natural-language question.")
+	if res.Source != "setup" && res.Source != "setup-menu" {
+		fmt.Println("   Matched from your natural-language question.")
+	}
 	fmt.Println()
+}
+
+// handleRunModuleInput handles pasted clio-run-module commands at the >> prompt.
+func handleRunModuleInput(input string) bool {
+	moduleID, flow, ok := setup.ParseRunModuleCommand(input)
+	if !ok {
+		return false
+	}
+	fmt.Println()
+	if w := setup.WizardByModuleID(moduleID); w != nil {
+		if err := modules.EnsureModule(w.ModuleID); err != nil {
+			fmt.Printf("⚠️  Could not download module: %v\n", err)
+			fmt.Println("   Check your connection or run 'sync' when online.")
+		}
+		fmt.Println("⭐ [SETUP WIZARD] — module workflows cannot run inside the >> prompt.")
+		fmt.Println("   Exit Clio (type 'exit'), then paste this in your shell:")
+		fmt.Printf("   %s\n", setup.RunCommandFor(*w))
+		return true
+	}
+	fmt.Println("📦 [AUTOMATION MODULE] — run in your shell, not the >> prompt.")
+	fmt.Printf("   %s\n", modules.RunCommand(moduleID, flow))
+	return true
+}
+
+func isRunModuleCommand(cmd string) bool {
+	_, _, ok := setup.ParseRunModuleCommand(cmd)
+	return ok
+}
+
+func printShellRunHint(cmd string) {
+	fmt.Println()
+	fmt.Println("This command must run in your shell, not inside the Clio REPL.")
+	fmt.Println("(On Termux/Android, the Go binary cannot spawn module workflows — SIGSYS.)")
+	fmt.Println()
+	fmt.Println("Exit Clio (type 'exit'), then run:")
+	fmt.Printf("  %s\n", cmd)
 }
 
 func showExamples(res *intent.DetectionResult) {
@@ -448,13 +490,18 @@ func runCommand(res *intent.DetectionResult, scanner *bufio.Scanner) {
 		return
 	}
 
-	// Execute safely
+	if isRunModuleCommand(finalCmd) || res.Source == "setup" {
+		printShellRunHint(finalCmd)
+		return
+	}
+
+	// Execute safely via sh -c (avoids direct exec quirks on some platforms)
 	parts := strings.Fields(finalCmd)
 	if len(parts) == 0 {
 		return
 	}
 
-	cmd := safeexec.Command(parts[0], parts[1:]...)
+	cmd := safeexec.Command("sh", "-c", finalCmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

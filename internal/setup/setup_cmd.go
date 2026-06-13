@@ -147,7 +147,7 @@ func ShowWizardGuide(w Wizard, firstRun bool) {
 		fmt.Printf("  ⏱  %s\n", w.Time)
 	}
 	fmt.Println()
-	fmt.Println("Run this in your terminal:")
+	fmt.Println("Run this in your shell (exit Clio first — type 'exit'):")
 	fmt.Println()
 	fmt.Printf("  %s\n", RunCommandFor(w))
 	fmt.Println()

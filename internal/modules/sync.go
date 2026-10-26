@@ -83,7 +83,7 @@ func SyncWithOptions(full bool) error {
 // isEssentialModule returns true for modules needed on constrained Termux devices.
 func isEssentialModule(moduleID string) bool {
 	switch moduleID {
-	case "termux_setup", "vim_setup", "git_setup", "devtools_setup", "database_setup":
+	case "termux_setup", "neovim_setup", "git_setup", "devtools_setup", "database_setup":
 		return true
 	}
 	lower := strings.ToLower(moduleID)
@@ -308,16 +308,16 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 	var script strings.Builder
 
 	// Write metadata
-	script.WriteString(fmt.Sprintf("MODULE_NAME=%s\n", shellEscape(module.Name)))
-	script.WriteString(fmt.Sprintf("MODULE_DESC=%s\n", shellEscape(module.Description)))
-	script.WriteString(fmt.Sprintf("MODULE_VERSION=%s\n", shellEscape(module.Version)))
-	script.WriteString(fmt.Sprintf("ESTIMATED_TIME=%s\n", shellEscape(module.EstimatedTime)))
+	script.WriteString(shellAssign("MODULE_NAME", module.Name))
+	script.WriteString(shellAssign("MODULE_DESC", module.Description))
+	script.WriteString(shellAssign("MODULE_VERSION", module.Version))
+	script.WriteString(shellAssign("ESTIMATED_TIME", module.EstimatedTime))
 	script.WriteString("\n")
 
 	// For each step, write in simple format
 	for _, flow := range module.Flows {
-		script.WriteString(fmt.Sprintf("FLOW_NAME=%s\n", shellEscape(flow.Name)))
-		script.WriteString(fmt.Sprintf("FLOW_DESC=%s\n", shellEscape(flow.Description)))
+		script.WriteString(shellAssign("FLOW_NAME", flow.Name))
+		script.WriteString(shellAssign("FLOW_DESC", flow.Description))
 		script.WriteString("\n")
 
 		// Count sections for progress
@@ -335,19 +335,19 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 			script.WriteString(fmt.Sprintf("STEP_%d_TYPE=%s\n", i, step.Type))
 
 			if step.Content != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_CONTENT=%s\n", i, shellEscape(step.Content)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_CONTENT", i), step.Content))
 			}
 			if step.Command != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_COMMAND=%s\n", i, shellEscape(step.Command)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_COMMAND", i), step.Command))
 			}
 			if step.Description != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_DESCRIPTION=%s\n", i, shellEscape(step.Description)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_DESCRIPTION", i), step.Description))
 			}
 			if step.Prompt != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_PROMPT=%s\n", i, shellEscape(step.Prompt)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_PROMPT", i), step.Prompt))
 			}
 			if step.Default != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_DEFAULT=%s\n", i, shellEscape(step.Default)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_DEFAULT", i), step.Default))
 			}
 			if step.ShowOutput {
 				script.WriteString(fmt.Sprintf("STEP_%d_SHOW_OUTPUT=true\n", i))
@@ -359,10 +359,10 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 				script.WriteString(fmt.Sprintf("STEP_%d_CONTINUE_ON_ERROR=true\n", i))
 			}
 			if step.OnNo != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_ON_NO=%s\n", i, shellEscape(step.OnNo)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_ON_NO", i), step.OnNo))
 			}
 			if step.Title != "" {
-				script.WriteString(fmt.Sprintf("STEP_%d_TITLE=%s\n", i, shellEscape(step.Title)))
+				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_TITLE", i), step.Title))
 			}
 
 			// Handle nested steps in sections
@@ -370,10 +370,10 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 				for j, substep := range step.Steps {
 					script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_TYPE=%s\n", i, j, substep.Type))
 					if substep.Command != "" {
-						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_COMMAND=%s\n", i, j, shellEscape(substep.Command)))
+						script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_SUB_%d_COMMAND", i, j), substep.Command))
 					}
 					if substep.Description != "" {
-						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_DESCRIPTION=%s\n", i, j, shellEscape(substep.Description)))
+						script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_SUB_%d_DESCRIPTION", i, j), substep.Description))
 					}
 					if substep.ShowOutput {
 						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_SHOW_OUTPUT=true\n", i, j))
@@ -398,8 +398,15 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 	return script.String(), nil
 }
 
-// shellEscape escapes a string for safe use in bash
-func shellEscape(s string) string {
-	// Use printf %q format which properly escapes for shell
-	return fmt.Sprintf("%q", s)
+// shellAssign writes name=$(cat <<'DELIM' ... DELIM) so multiline commands,
+// quotes, and dollar signs survive `source` on the Termux module runner.
+// Go %q turns newlines into the two characters \ and n, and bash then
+// executes the flattened line.
+func shellAssign(name, value string) string {
+	delim := "CLIO_EOF"
+	for strings.Contains(value, delim) {
+		delim += "_X"
+	}
+	body := strings.TrimRight(value, "\n")
+	return fmt.Sprintf("%s=$(cat <<'%s'\n%s\n%s\n)\n", name, delim, body, delim)
 }

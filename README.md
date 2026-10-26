@@ -202,11 +202,27 @@ $ clio-run-module termux_setup setup
 - **System Updates**: Package updates and mirror optimization
 - **Storage Access**: Android storage integration
 - **Zsh Shell**: Oh-My-Zsh with Powerlevel10k theme
-- **Dev Tools**: Git, GitHub CLI, Vim (configured as lightweight IDE)
+- **Dev Tools**: Git, GitHub CLI
 - **AI Assistant**: LLM tool with DeepSeek integration
 - **Languages**: Optional installation of PHP, Node.js, Golang, Python
 
 The setup takes 10-20 minutes and only needs to be run once.
+
+**Neovim (generate code, then edit it):**
+
+```bash
+$ clio-run-module neovim_setup setup
+```
+
+Or inside Clio: `setup neovim`. `setup vim` opens this same wizard. It installs Neovim, [gp.nvim](https://github.com/Robitx/gp.nvim) with DeepSeek, and a small plugin set: file tree, fzf, comments, and autopairs. Git and GitHub stay in the shell (`setup git`). In Neovim, comma is the leader:
+
+- `,ga` generates code after the cursor (or after a visual selection)
+- `,gr` rewrites the current line, or the selected lines, in place
+- `,gc` opens a chat beside the file
+- `,e` opens the file tree, `,p` or Ctrl-p finds a file
+- `,w` saves, `,q` quits, `gcc` comments a line
+
+The API key is stored in `~/.config/gp/deepseek.key` (mode 600). The editor config is `~/.config/nvim/init.lua`, which you can edit like any other file. Switch `deepseek-flash` to `deepseek-v4-pro` in that file if you want the stronger model.
 
 ### Module Sync
 To fetch the latest automation modules from the central repository:

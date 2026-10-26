@@ -11,12 +11,15 @@ func TestResolveSetup(t *testing.T) {
 		{"setup", MatchMenu, ""},
 		{"wizards", MatchMenu, ""},
 		{"termux setup", MatchWizard, "termux"},
-		{"setup vim", MatchWizard, "vim"},
+		{"setup vim", MatchWizard, "neovim"},
+		{"setup neovim", MatchWizard, "neovim"},
+		{"setup nvim", MatchWizard, "neovim"},
+		{"install neovim", MatchWizard, "neovim"},
 		{"setup git", MatchWizard, "git"},
 		{"how do I setup termux for coding", MatchWizard, "termux"},
 		{"abeg help me setup termux", MatchWizard, "termux"},
 		{"configure my dev environment", MatchWizard, "termux"},
-		{"setup vim plugins", MatchWizard, "vim"},
+		{"setup vim plugins", MatchWizard, "neovim"},
 		{"install postgres", MatchWizard, "database"},
 		{"setup devtools", MatchWizard, "devtools"},
 		{"list files", MatchNone, ""},
@@ -39,13 +42,13 @@ func TestResolveSetup(t *testing.T) {
 }
 
 func TestRunCommandFor(t *testing.T) {
-	w := WizardByID("vim")
+	w := WizardByID("neovim")
 	if w == nil {
-		t.Fatal("vim wizard not found")
+		t.Fatal("neovim wizard not found")
 	}
-	want := "clio-run-module vim_setup setup"
+	want := "clio-run-module neovim_setup setup"
 	if got := RunCommandFor(*w); got != want {
-		t.Fatalf("RunCommandFor(vim) = %q, want %q", got, want)
+		t.Fatalf("RunCommandFor(neovim) = %q, want %q", got, want)
 	}
 }
 

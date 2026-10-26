@@ -310,10 +310,6 @@ func executeStep(step *Step, ctx *ExecutionContext, sectionNum, totalSections in
 		}
 
 		switch step.Operation {
-		case "create_vimrc":
-			if err := setup.CreateVimConfig(); err != nil {
-				return fmt.Errorf("vim config failed: %w", err)
-			}
 		case "configure_zshrc":
 			if err := configureZshrc(); err != nil {
 				return fmt.Errorf("zshrc config failed: %w", err)

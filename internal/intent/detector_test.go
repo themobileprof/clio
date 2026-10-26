@@ -102,12 +102,14 @@ func TestDetectSetupWizards(t *testing.T) {
 	}{
 		{"setup", "setup-menu", ""},
 		{"termux setup", "setup", "termux_setup"},
-		{"setup vim", "setup", "vim_setup"},
+		{"setup vim", "setup", "neovim_setup"},
+		{"setup neovim", "setup", "neovim_setup"},
+		{"setup nvim", "setup", "neovim_setup"},
 		{"install git and gh", "setup", "git_setup"},
 		{"install postgres", "setup", "database_setup"},
 		{"setup devtools", "setup", "devtools_setup"},
 		{"clio-run-module termux_setup setup", "setup", "termux_setup"},
-		{"clio-run-module vim_setup setup", "setup", "vim_setup"},
+		{"clio-run-module neovim_setup setup", "setup", "neovim_setup"},
 	}
 	for _, c := range cases {
 		result, err := Detect(c.query)

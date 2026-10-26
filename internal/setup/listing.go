@@ -6,7 +6,7 @@ import "fmt"
 func ShowWizardCatalogSection(isCached func(moduleID string) bool) {
 	fmt.Println("── ⭐ SETUP WIZARDS ─────────────────────────────────────────")
 	fmt.Println("   Install & configure your environment — usually run once")
-	fmt.Println("   Ask naturally: \"setup termux\", \"install git and gh\", \"setup vim\"")
+	fmt.Println("   Ask naturally: \"setup termux\", \"setup neovim\", \"install git and gh\"")
 	fmt.Println("   Command: setup <name>")
 	fmt.Println()
 

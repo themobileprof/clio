@@ -44,7 +44,7 @@ COURSE = {
     "difficulty": "beginner",
     "isPublished": True,
     "objectives": (
-        "Install Clio, ask questions in plain English and Pidgin, run setup wizards, "
+        "Install Clio, ask questions in plain English, run setup wizards, "
         "download automation modules, and work confidently on Termux."
     ),
     "prerequisites": "Basic familiarity with opening a terminal (Termux or Linux).",
@@ -63,7 +63,7 @@ LESSONS_OUTLINE = [
 ## Why students use it
 
 - Works **offline first** — common tasks match instantly without internet
-- Understands **Nigerian Pidgin** — "abeg show me files for downloads folder"
+- Understands **natural language** — including casual phrasing and Nigerian Pidgin queries
 - Built for **Termux on Android** — low memory, no crashes
 - Shows commands **before** running them — you stay in control
 
@@ -106,7 +106,7 @@ Clio is **not** a chatbot that runs mystery code. It is a **command finder** wit
     },
     {
         "title": "Lesson 2 — Ask in Plain English",
-        "description": "Use natural language, Pidgin, and full sentences to find shell commands.",
+        "description": "Use natural language and full sentences to find shell commands.",
         "durationMinutes": 12,
         "content": """# Ask in Plain English
 
@@ -132,14 +132,13 @@ These map to everyday Linux commands:
 >> show me files modified in the last week
 ```
 
-## Nigerian Pidgin & campus talk
+## Casual phrasing
 
-Clio understands casual phrasing:
+Clio also understands informal language (including Nigerian Pidgin). Example queries you can try:
 
 ```
 >> wetin dey inside this folder
 >> abeg help me check memory
->> I wan install python for termux
 ```
 
 ## The result menu
@@ -160,12 +159,12 @@ Always read the command before pressing yes.
 
 ## Practice
 
-Ask five questions mixing formal English and Pidgin. Note which type of match you get.
+Ask five questions in natural language. Note which type of match you get.
 """,
     },
     {
         "title": "Lesson 3 — Setup Wizards",
-        "description": "Use first-class setup wizards to configure Termux, Vim, Git, languages, and databases.",
+        "description": "Use first-class setup wizards to configure Termux, Neovim, Git, languages, and databases.",
         "durationMinutes": 15,
         "content": """# Setup Wizards
 
@@ -183,7 +182,7 @@ Or pick one directly:
 
 ```
 >> setup termux
->> setup vim
+>> setup neovim
 >> setup git
 >> setup devtools
 >> setup database
@@ -194,7 +193,7 @@ Natural language also works:
 ```
 >> configure my dev environment
 >> install git and gh
->> setup vim plugins
+>> setup neovim
 ```
 
 ## Available wizards
@@ -202,7 +201,7 @@ Natural language also works:
 | Wizard | Purpose |
 |--------|---------|
 | `setup termux` | Full phone dev environment (Zsh, storage, essentials) |
-| `setup vim` | Vim + dev plugins |
+| `setup neovim` | Neovim with plugins: generate code, rewrite a selection, find files |
 | `setup git` | Git identity + GitHub CLI (`gh`) |
 | `setup devtools` | Pick Python, Node, Go, PHP, Rust |
 | `setup database` | Choose PostgreSQL, MariaDB, Redis, SQLite |
@@ -390,11 +389,13 @@ Older phones need the **arm** binary, not arm64. The install script detects `arm
 
 The Termux setup wizard runs `termux-setup-storage` so you can reach Downloads and shared storage at `~/storage/`.
 
-## Pidgin on your phone
+## Natural language on your phone
+
+Clio works the same on Termux — ask in plain English or casual phrasing:
 
 ```
->> wetin dey inside downloads folder
->> abeg check disk space
+>> list files in downloads folder
+>> check disk space
 ```
 
 ## Troubleshooting
@@ -407,7 +408,7 @@ The Termux setup wizard runs `termux-setup-storage` so you can reach Downloads a
 
 ## Practice
 
-Run `setup termux` or confirm it was completed, then ask three Pidgin queries.
+Run `setup termux` or confirm it was completed, then ask three natural-language queries.
 """,
     },
     {
@@ -456,7 +457,7 @@ Complete these without Googling the raw commands:
 - [ ] You can install and launch Clio on Termux or Linux
 - [ ] You distinguish setup wizards from automation modules
 - [ ] You can download and run at least one module
-- [ ] You ask questions in plain English or Pidgin confidently
+- [ ] You ask questions in plain English confidently
 
 **Stop Googling. Start asking.**
 """,
@@ -511,27 +512,25 @@ def main() -> None:
     created = upsert.get("created", False)
     print(f"✓ Micro course {'created' if created else 'updated'}: {course['title']} ({course_id})")
 
-    existing_lessons = request("GET", f"{base}/admin/micro-courses/{course_id}", token)
-    lesson_count = len(existing_lessons.get("microCourse", {}).get("lessons", []) or [])
     lessons = load_lessons()
-    if lesson_count >= len(lessons):
-        print(f"✓ Course already has {lesson_count} lessons — skipping lesson creation")
-        return
+    lessons_resp = request("GET", f"{base}/admin/courses/{course_id}/lessons?limit=20", token)
+    remote = sorted(lessons_resp.get("lessons") or [], key=lambda item: item.get("order_index", 0))
 
     for i, lesson in enumerate(lessons, 1):
-        result = request(
-            "POST",
-            f"{base}/admin/courses/{course_id}/lessons",
-            token,
-            {
-                "title": lesson["title"],
-                "description": lesson["description"],
-                "content": lesson["content"],
-                "durationMinutes": lesson["durationMinutes"],
-            },
-        )
-        lid = result.get("lesson", {}).get("id", "?")
-        print(f"  ✓ Lesson {i}/{len(lessons)}: {lesson['title']} ({lid})")
+        body = {
+            "title": lesson["title"],
+            "description": lesson["description"],
+            "content": lesson["content"],
+            "durationMinutes": lesson["durationMinutes"],
+        }
+        if i <= len(remote):
+            lid = remote[i - 1]["id"]
+            request("PUT", f"{base}/admin/lessons/{lid}", token, body)
+            print(f"  ✓ Updated lesson {i}/{len(lessons)}: {lesson['title']} ({lid})")
+        else:
+            result = request("POST", f"{base}/admin/courses/{course_id}/lessons", token, body)
+            lid = result.get("lesson", {}).get("id", "?")
+            print(f"  ✓ Created lesson {i}/{len(lessons)}: {lesson['title']} ({lid})")
 
     print("\n✅ Clio micro course published successfully.")
     print(f"   Title: {COURSE['title']}")

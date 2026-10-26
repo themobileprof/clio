@@ -163,7 +163,7 @@ fi
 
 # Write script to temp file
 TEMP_SCRIPT=$(mktemp)
-echo "$BASH_SCRIPT" > "$TEMP_SCRIPT"
+printf '%s\n' "$BASH_SCRIPT" > "$TEMP_SCRIPT"
 trap "rm -f $TEMP_SCRIPT" EXIT
 
 # Source the variables

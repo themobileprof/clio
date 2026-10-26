@@ -38,7 +38,7 @@ func Detect(input string) (*DetectionResult, error) {
 		}, nil
 	}
 
-	// Layer 0: setup wizards (Termux, Vim, Git, dev tools, databases)
+	// Layer 0: setup wizards (Termux, Neovim, Git, dev tools, databases)
 	if kind, wizard := setup.ResolveSetup(input); kind != setup.MatchNone {
 		if kind == setup.MatchWizard && wizard != nil {
 			return &DetectionResult{

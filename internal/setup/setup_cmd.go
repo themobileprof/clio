@@ -63,8 +63,8 @@ func matchWizardToken(token string) *Wizard {
 	}
 	// Allow module id aliases
 	aliases := map[string]string{
-		"termux_setup": "termux", "vim_setup": "vim", "git_setup": "git",
-		"devtools_setup": "devtools", "database_setup": "database",
+		"termux_setup": "termux", "neovim_setup": "neovim",
+		"git_setup": "git", "devtools_setup": "devtools", "database_setup": "database",
 	}
 	if id, ok := aliases[token]; ok {
 		return WizardByID(id)
@@ -101,7 +101,7 @@ func RunCommand() string {
 
 // ShortDescription summarizes setup for detection results.
 func ShortDescription() string {
-	return "Interactive setup wizards (Termux, Vim, Git, dev tools, databases)"
+	return "Interactive setup wizards (Termux, Neovim, Git, dev tools, databases)"
 }
 
 // ShowMenu prints the setup wizard catalog.
@@ -121,7 +121,7 @@ func ShowGuide() {
 	if IsTermux() && !IsSetupComplete() {
 		if w := WizardByID("termux"); w != nil {
 			ShowWizardGuide(*w, true)
-			fmt.Println("Other wizards: type 'setup' to see Vim, Git, dev tools, databases.")
+			fmt.Println("Other wizards: type 'setup' to see Neovim, Git, dev tools, databases.")
 			return
 		}
 	}
@@ -133,7 +133,7 @@ func ShowWizardGuide(w Wizard, firstRun bool) {
 	if firstRun && w.ID == "termux" {
 		fmt.Println("╔══════════════════════════════════════════════════════════╗")
 		fmt.Println("║  ⭐ TERMUX SETUP — start here (first-class command)      ║")
-		fmt.Println("║     Type 'setup' for all wizards · Zsh · Vim · Git       ║")
+		fmt.Println("║     Type 'setup' for all wizards · Zsh · Neovim · Git    ║")
 		fmt.Println("╚══════════════════════════════════════════════════════════╝")
 	} else {
 		fmt.Printf("╔══════════════════════════════════════════════════════════╗\n")

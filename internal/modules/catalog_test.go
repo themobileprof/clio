@@ -53,7 +53,7 @@ func TestFetchAutomationCatalogExcludesSetup(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(catalogResponse{
 			Total: 2,
 			Modules: []CatalogEntry{
-				{ID: "vim_setup", Description: "setup wizard"},
+				{ID: "neovim_setup", Description: "setup wizard"},
 				{ID: "copy_file", Description: "copy files"},
 			},
 		})

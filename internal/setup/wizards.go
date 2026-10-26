@@ -36,6 +36,7 @@ func AllWizards() []Wizard {
 			Includes: []string{
 				"Package updates & Android storage access",
 				"Zsh + Oh-My-Zsh, Git, GitHub CLI",
+				"Optional HTML pages: Pico CSS saved at ~/.clio/share/",
 				"Optional: Python, Node.js, Go, PHP",
 			},
 			Time: "10–20 minutes",

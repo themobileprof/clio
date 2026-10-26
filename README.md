@@ -4,6 +4,8 @@ Clio is a lightweight, offline-first command-line assistant that helps you find 
 
 **Stop Googling. Start asking.**
 
+Students: follow [docs/student-guide.md](docs/student-guide.md) from a blank phone through a generated site, a GitHub push, and an SSH deploy. No teacher required.
+
 ```bash
 >> extract tar file
 ✓ Use: tar -xzvf
@@ -204,6 +206,7 @@ $ clio-run-module termux_setup setup
 - **Zsh Shell**: Oh-My-Zsh with Powerlevel10k theme
 - **Dev Tools**: Git, GitHub CLI
 - **AI Assistant**: LLM tool with DeepSeek integration
+- **HTML pages**: asked during setup. A yes saves Pico CSS at `~/.clio/share/pico.classless.min.css`
 - **Languages**: Optional installation of PHP, Node.js, Golang, Python
 
 The setup takes 10-20 minutes and only needs to be run once.
@@ -222,7 +225,7 @@ Or inside Clio: `setup neovim`. `setup vim` opens this same wizard. It installs 
 - `,e` opens the file tree, `,p` or Ctrl-p finds a file
 - `,w` saves, `,q` quits, `gcc` comments a line
 
-The API key is stored in `~/.config/gp/deepseek.key` (mode 600). The editor config is `~/.config/nvim/init.lua`, which you can edit like any other file. Switch `deepseek-flash` to `deepseek-v4-pro` in that file if you want the stronger model.
+On an HTML file, `,ga` and `,gr` append the Pico CSS rules to the prompt you type. The API key is stored in `~/.config/gp/deepseek.key` (mode 600). The editor config is `~/.config/nvim/init.lua`, which you can edit like any other file. Switch `deepseek-flash` to `deepseek-v4-pro` in that file if you want the stronger model.
 
 ### Module Sync
 To fetch the latest automation modules from the central repository:

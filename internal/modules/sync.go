@@ -301,6 +301,18 @@ func processModuleByID(moduleID, url string) error {
 // convertYAMLToBashScript converts module YAML to bash-friendly format
 // This pre-processes the YAML so bash script doesn't need to parse it
 func convertYAMLToBashScript(yamlContent string) (string, error) {
+	var shape struct {
+		Flows yaml.Node `yaml:"flows"`
+	}
+	if err := yaml.Unmarshal([]byte(yamlContent), &shape); err != nil {
+		return "", err
+	}
+	// Command modules store flows as a map. Only wizard modules (a list of
+	// steps) become a bash script for clio-run-module.
+	if shape.Flows.Kind != yaml.SequenceNode {
+		return "", nil
+	}
+
 	var module FullModuleYAML
 	if err := yaml.Unmarshal([]byte(yamlContent), &module); err != nil {
 		return "", err

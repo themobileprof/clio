@@ -96,8 +96,8 @@ func configureSQLite(db *sql.DB) error {
 	if platform.IsLiteProfile() {
 		// Tight limits for 2 GB Termux devices
 		pragmas = append(pragmas,
-			"PRAGMA cache_size = -512",  // 512 KiB page cache
-			"PRAGMA mmap_size = 0",      // disable memory-mapped I/O
+			"PRAGMA cache_size = -512", // 512 KiB page cache
+			"PRAGMA mmap_size = 0",     // disable memory-mapped I/O
 			"PRAGMA journal_mode = DELETE",
 			"PRAGMA synchronous = NORMAL",
 			"PRAGMA temp_store = FILE",
@@ -135,14 +135,71 @@ func initSchema(db *sql.DB) error {
 		id INTEGER PRIMARY KEY CHECK (id = 1),
 		last_sync_timestamp TIMESTAMP
 	);
-
-	CREATE INDEX IF NOT EXISTS idx_modules_search ON modules(name, tags);
 	`
-	_, err := db.Exec(query)
-	if err != nil {
+	if _, err := db.Exec(query); err != nil {
+		return fmt.Errorf("init schema: %w", err)
+	}
+	// CREATE TABLE IF NOT EXISTS leaves an older database unchanged.
+	// Phones that synced before bash_script existed still have that table.
+	if err := ensureModuleColumns(db); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_modules_search ON modules(name, tags)`); err != nil {
+		return fmt.Errorf("init schema: %w", err)
+	}
+	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_modules_module_id ON modules(module_id)`); err != nil {
 		return fmt.Errorf("init schema: %w", err)
 	}
 	return nil
+}
+
+func ensureModuleColumns(db *sql.DB) error {
+	have, err := tableColumns(db, "modules")
+	if err != nil {
+		return err
+	}
+	wanted := []struct {
+		name string
+		decl string
+	}{
+		{"module_id", "TEXT"},
+		{"tags", "TEXT"},
+		{"version", "TEXT"},
+		{"content", "TEXT"},
+		{"bash_script", "TEXT"},
+		{"checksum", "TEXT"},
+		{"synced_at", "TIMESTAMP"},
+	}
+	for _, col := range wanted {
+		if have[col.name] {
+			continue
+		}
+		stmt := fmt.Sprintf("ALTER TABLE modules ADD COLUMN %s %s", col.name, col.decl)
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("add modules.%s: %w", col.name, err)
+		}
+	}
+	return nil
+}
+
+func tableColumns(db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return nil, fmt.Errorf("table info %s: %w", table, err)
+	}
+	defer rows.Close()
+	cols := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		cols[name] = true
+	}
+	return cols, rows.Err()
 }
 
 // UpsertModule inserts or updates a module in the database (without checksum)

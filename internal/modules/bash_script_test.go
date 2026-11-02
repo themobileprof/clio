@@ -8,6 +8,29 @@ import (
 	"testing"
 )
 
+func TestBashScriptSkipsMapFlows(t *testing.T) {
+	yaml := `
+name: list_directory
+id: org.themobileprof.list_directory
+version: 1.0.0
+description: List a directory
+flows:
+  main:
+    start: list_contents
+    steps:
+      list_contents:
+        type: action
+        command: ls
+`
+	script, err := convertYAMLToBashScript(yaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if script != "" {
+		t.Fatalf("map-style flows should not become a wizard script:\n%s", script)
+	}
+}
+
 func TestBashScriptPreservesMultilineCommand(t *testing.T) {
 	yaml := `
 name: Sample

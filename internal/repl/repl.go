@@ -137,6 +137,11 @@ func Run() {
 }
 
 func printWelcome() {
+	n, err := layer3.CountModules()
+	if err == nil && n == 0 {
+		fmt.Println("Type sync to download modules. When it finishes, type exit.")
+		return
+	}
 	fmt.Println("CLIPilot Client (Offline First) - Type 'catalog', 'setup', or ask anything")
 	if config.IsLiteProfile() {
 		fmt.Println("Profile: lite (offline layers 1+3 — 'sync full' for all modules)")

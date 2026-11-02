@@ -249,6 +249,17 @@ func UpsertModuleWithChecksum(modID, name, desc, tags, version, content, bashScr
 	return err
 }
 
+// CountModules returns how many modules are stored on this device.
+func CountModules() (int, error) {
+	db, err := GetDB()
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	err = db.QueryRow(`SELECT COUNT(*) FROM modules`).Scan(&n)
+	return n, err
+}
+
 // ModuleExists reports whether a module ID is present (metadata only, no content load).
 func ModuleExists(moduleID string) (bool, error) {
 	db, err := GetDB()

@@ -14,9 +14,9 @@ func ShowWizardCatalogSection(isCached func(moduleID string) bool) {
 		status := ""
 		if isCached != nil {
 			if isCached(w.ModuleID) {
-				status = "  [✓ ready]"
+				status = "  [downloaded]"
 			} else {
-				status = "  [○ download on first use]"
+				status = "  [not downloaded]"
 			}
 		}
 		marker := " "

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"clio/internal/config"
 	"clio/internal/intent"
+	"clio/internal/layer3"
 	"clio/internal/modules"
 	"clio/internal/safeexec"
 	"clio/internal/setup"
@@ -87,7 +88,7 @@ func Run() {
 				}
 				setup.ShowWizardGuide(*wizard, false)
 			} else {
-				setup.ShowGuide()
+				setup.ShowMenuWith(moduleDownloaded)
 			}
 			continue
 		}
@@ -117,7 +118,7 @@ func Run() {
 		if result.Source == "setup" || result.Source == "setup-menu" {
 			switch result.Source {
 			case "setup-menu":
-				setup.ShowMenu()
+				setup.ShowMenuWith(moduleDownloaded)
 			default:
 				if w := setup.WizardFromCommand(result.Command); w != nil {
 					if err := modules.EnsureModule(w.ModuleID); err != nil {
@@ -249,7 +250,12 @@ func printResultHeader(res *intent.DetectionResult) {
 	fmt.Println()
 }
 
-// handleRunModuleInput handles pasted clio-run-module commands at the >> prompt.
+func moduleDownloaded(moduleID string) bool {
+	ok, err := layer3.ModuleExists(moduleID)
+	return err == nil && ok
+}
+
+// handleRunModuleInput handles a wizard command pasted at the >> prompt.
 func handleRunModuleInput(input string) bool {
 	moduleID, flow, ok := setup.ParseRunModuleCommand(input)
 	if !ok {

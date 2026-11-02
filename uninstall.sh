@@ -79,7 +79,7 @@ fi
 
 # Remove binary
 echo "Removing binary..."
-rm -f "$BINARY_PATH"
+rm -f "$BINARY_PATH" "$INSTALL_DIR/clio.bin" "$INSTALL_DIR/clio-run-module"
 echo "✅ Removed $BINARY_PATH"
 
 # Ask about config directory

@@ -129,10 +129,11 @@ func WizardByModuleID(moduleID string) *Wizard {
 	return nil
 }
 
-// ParseRunModuleCommand parses "clio-run-module <module_id> [flow]".
+// ParseRunModuleCommand parses "clio <module_id> [flow]" and the older
+// "clio-run-module <module_id> [flow]".
 func ParseRunModuleCommand(input string) (moduleID, flow string, ok bool) {
 	fields := strings.Fields(strings.TrimSpace(input))
-	if len(fields) < 2 || fields[0] != "clio-run-module" {
+	if len(fields) < 2 || (fields[0] != "clio" && fields[0] != "clio-run-module") {
 		return "", "", false
 	}
 	moduleID = fields[1]
@@ -155,9 +156,10 @@ func WizardByID(id string) *Wizard {
 	return nil
 }
 
-// RunCommandFor returns the clio-run-module command for a wizard.
+// RunCommandFor returns the shell command for a wizard.
+// The shell wrapper runs it outside the >> prompt, which Termux blocks.
 func RunCommandFor(w Wizard) string {
-	return "clio-run-module " + w.ModuleID + " " + w.Flow
+	return "clio " + w.ModuleID
 }
 
 // IsSetupModule reports whether a registry module ID is a first-class setup wizard.

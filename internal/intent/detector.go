@@ -6,6 +6,7 @@ import (
 	"clio/internal/layer2"
 	"clio/internal/layer3"
 	"clio/internal/layer4"
+	"clio/internal/modules"
 	"clio/internal/setup"
 	"fmt"
 	"strings"
@@ -31,7 +32,7 @@ func Detect(input string) (*DetectionResult, error) {
 			}, nil
 		}
 		return &DetectionResult{
-			Command:     "clio-run-module " + moduleID + " " + flow,
+			Command:     modules.RunCommand(moduleID, flow),
 			Description: "Automation module workflow",
 			Source:      "module",
 			Confidence:  0.95,

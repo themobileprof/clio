@@ -9,6 +9,7 @@ func TestParseRunModuleCommand(t *testing.T) {
 		flow     string
 		ok       bool
 	}{
+		{"clio termux_setup", "termux_setup", "setup", true},
 		{"clio-run-module termux_setup setup", "termux_setup", "setup", true},
 		{"clio-run-module git_setup", "git_setup", "setup", true},
 		{"clio-run-module copy_file run", "copy_file", "run", true},

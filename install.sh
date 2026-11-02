@@ -113,7 +113,7 @@ if [ "$FILE_SIZE" -lt 102400 ]; then
 fi
 
 chmod +x "$BIN_NAME"
-mv "$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
+mv "$BIN_NAME" "$INSTALL_DIR/clio.bin"
 
 # Create .clio directory structure
 CLIO_DIR="$HOME/.clio"
@@ -129,31 +129,27 @@ cat > "$INSTALL_DIR/clio-run-module" <<'EOMODRUNNER'
 set -euo pipefail
 
 MODULE_ID="${1:-}"
-FLOW_NAME="${2:-setup}"
-DB_PATH="${HOME}/.clio/clio.db"
 
 if [ -z "$MODULE_ID" ]; then
-    echo "Usage: clio-run-module <module_id> [flow_name]"
-    echo "Example: clio-run-module termux_setup setup"
+    echo "Usage: clio <module_id>"
+    echo "Example: clio termux_setup"
     exit 1
 fi
 
-if [ ! -f "$DB_PATH" ]; then
-    echo "❌ Module database not found at: $DB_PATH"
-    echo "Run 'clio' and type 'sync' to download modules first."
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+BIN="$SCRIPT_DIR/clio.bin"
+if [ ! -x "$BIN" ]; then
+    echo "❌ Clio program is missing at $BIN"
+    echo "Reinstall Clio, then run 'clio' and type 'sync'."
     exit 1
 fi
 
-# Check for sqlite3
-if ! command -v sqlite3 >/dev/null 2>&1; then
-    echo "❌ sqlite3 is required but not installed."
-    echo "On Termux: pkg install sqlite"
-    exit 1
-fi
-
-# Load pre-processed bash script from database
+# The Go program only reads the saved script. It does not start the wizard,
+# because Termux blocks programs that Clio itself launches.
 echo "📦 Loading module: $MODULE_ID"
-BASH_SCRIPT=$(sqlite3 "$DB_PATH" "SELECT bash_script FROM modules WHERE module_id = '$MODULE_ID';" 2>/dev/null)
+if ! BASH_SCRIPT=$("$BIN" --print-module "$MODULE_ID"); then
+    exit 1
+fi
 
 if [ -z "$BASH_SCRIPT" ]; then
     echo "❌ Module '$MODULE_ID' not found in database or not preprocessed"
@@ -315,7 +311,28 @@ EOMODRUNNER
 
 chmod +x "$INSTALL_DIR/clio-run-module"
 
-echo "✅ Successfully installed $BIN_NAME to $INSTALL_DIR"
+cat > "$INSTALL_DIR/clio" <<'EOWRAPPER'
+#!/bin/bash
+# clio with no arguments opens the prompt.
+# clio termux_setup runs that wizard in this shell, not inside >>.
+set -euo pipefail
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+BIN="$SCRIPT_DIR/clio.bin"
+if [ ! -x "$BIN" ]; then
+    echo "Clio program is missing at $BIN. Reinstall Clio."
+    exit 1
+fi
+if [ $# -eq 0 ]; then
+    exec "$BIN"
+fi
+case "$1" in
+    --*) exec "$BIN" "$@" ;;
+esac
+exec "$SCRIPT_DIR/clio-run-module" "$@"
+EOWRAPPER
+chmod +x "$INSTALL_DIR/clio"
+
+echo "✅ Successfully installed clio to $INSTALL_DIR"
 
 # Check PATH
 case ":$PATH:" in

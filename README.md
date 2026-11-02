@@ -187,15 +187,15 @@ Clio includes automation modules (YAML-based workflows) for complex tasks. To ex
 >> sync
 
 # Exit and run modules with the external script
-$ clio-run-module termux_setup setup
-$ clio-run-module <module_id> <flow_name>
+$ clio termux_setup
+$ clio <module_id>
 ```
 
 **Example - Termux Setup:**
 If you're on Termux and want to configure your development environment:
 
 ```bash
-$ clio-run-module termux_setup setup
+$ clio termux_setup
 ```
 
 **Why external script?** On Termux/Android, Go 1.24+'s subprocess handling triggers blocked syscalls (pidfd_open). Using a bash script avoids this. For simplicity and consistency, all platforms use the same execution method.
@@ -214,7 +214,7 @@ The setup takes 10-20 minutes and only needs to be run once.
 **Neovim (generate code, then edit it):**
 
 ```bash
-$ clio-run-module neovim_setup setup
+$ clio neovim_setup
 ```
 
 Or inside Clio: `setup neovim`. `setup vim` opens this same wizard. It installs Neovim, [gp.nvim](https://github.com/Robitx/gp.nvim) with DeepSeek, and a small plugin set: file tree, fzf, comments, and autopairs. Git and GitHub stay in the shell (`setup git`). In Neovim, comma is the leader:
@@ -294,11 +294,11 @@ Clio separates concerns:
 >> sync
 
 # Exit and run modules with the external script
-$ clio-run-module termux_setup setup
-$ clio-run-module <module_id> <flow_name>
+$ clio termux_setup
+$ clio <module_id>
 ```
 
-The `clio-run-module` script is automatically installed alongside Clio and requires only `sqlite3` (pre-installed on Termux).
+The `clio` command runs a wizard in the shell (`clio termux_setup`). It reads the saved script itself, so the phone does not need the `sqlite3` program.
 
 **What changed:**
 

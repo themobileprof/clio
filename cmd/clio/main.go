@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"clio/internal/config"
 	"clio/internal/intent"
+	"clio/internal/layer3"
 	"clio/internal/repl"
 	"clio/internal/setup"
 	"fmt"
@@ -15,6 +16,19 @@ import (
 
 func main() {
 	applyMemoryProfile()
+
+	if len(os.Args) >= 3 && os.Args[1] == "--print-module" {
+		script, err := layer3.GetModuleBashScript(os.Args[2])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Run clio, then type sync, before running this wizard.\n")
+			os.Exit(1)
+		}
+		if !strings.HasSuffix(script, "\n") {
+			script += "\n"
+		}
+		fmt.Print(script)
+		return
+	}
 
 	if !isInteractive() {
 		runPipeMode()

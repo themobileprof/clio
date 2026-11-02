@@ -106,11 +106,19 @@ func ShortDescription() string {
 
 // ShowMenu prints the setup wizard catalog.
 func ShowMenu() {
+	ShowMenuWith(nil)
+}
+
+// ShowMenuWith prints the wizard list. isCached reports whether a module
+// is already stored on this device, which is the status next to Neovim and Git.
+func ShowMenuWith(isCached func(moduleID string) bool) {
 	fmt.Println("╔══════════════════════════════════════════════════════════╗")
 	fmt.Println("║  ⭐ SETUP WIZARDS — not the same as automation modules   ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════╝")
 	fmt.Println()
-	ShowWizardCatalogSection(nil)
+	fmt.Println("Type exit, then run a wizard in the shell. Example: clio termux_setup")
+	fmt.Println()
+	ShowWizardCatalogSection(isCached)
 	fmt.Println("For day-to-day task workflows (copy files, check disk, etc.):")
 	fmt.Println("  type 'modules' or 'catalog'")
 	fmt.Println()
@@ -121,7 +129,7 @@ func ShowGuide() {
 	if IsTermux() && !IsSetupComplete() {
 		if w := WizardByID("termux"); w != nil {
 			ShowWizardGuide(*w, true)
-			fmt.Println("Other wizards: type 'setup' to see Neovim, Git, dev tools, databases.")
+			fmt.Println("Type setup to see Neovim, Git, and the others, and whether each one is downloaded.")
 			return
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -400,7 +401,7 @@ func SearchModules(keywords []string) ([]Module, error) {
 		if setup.IsSetupModule(modID) {
 			continue
 		}
-		m.Command = "clio-run-module " + modID + " setup"
+		m.Command = "clio " + modID
 		m.Keywords = tags
 		modules = append(modules, m)
 	}
@@ -422,4 +423,21 @@ func GetModuleByID(moduleID string) (string, error) {
 	}
 
 	return content, nil
+}
+
+// GetModuleBashScript returns the preprocessed wizard script for a module.
+func GetModuleBashScript(moduleID string) (string, error) {
+	db, err := GetDB()
+	if err != nil {
+		return "", err
+	}
+	var script sql.NullString
+	err = db.QueryRow(`SELECT bash_script FROM modules WHERE module_id = ?`, moduleID).Scan(&script)
+	if err == sql.ErrNoRows || !script.Valid || strings.TrimSpace(script.String) == "" {
+		return "", fmt.Errorf("module %s is not on this device", moduleID)
+	}
+	if err != nil {
+		return "", err
+	}
+	return script.String, nil
 }

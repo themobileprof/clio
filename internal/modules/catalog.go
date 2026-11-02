@@ -98,7 +98,10 @@ func RunCommand(moduleID, flow string) string {
 	if flow == "" {
 		flow = "setup"
 	}
-	return "clio-run-module " + moduleID + " " + flow
+	if flow == "setup" {
+		return "clio " + moduleID
+	}
+	return "clio " + moduleID + " " + flow
 }
 
 // ShowFullCatalog prints setup wizards and automation modules in two distinct sections.
@@ -161,7 +164,7 @@ func showAutomationEntries(cached map[string]bool) {
 	fmt.Printf("%d automation module(s)\n", len(entries))
 	fmt.Println("  get one:  download <module_id>")
 	fmt.Println("  get all:  sync")
-	fmt.Println("  run:      clio-run-module <module_id> setup")
+	fmt.Println("  run:      clio <module_id>")
 	fmt.Println()
 }
 

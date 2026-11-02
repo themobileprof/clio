@@ -38,16 +38,16 @@ clio
 
 At `>>` type `sync`, wait until it finishes, then `exit`.
 
-On Termux, run wizards with `clio-run-module` in the shell. Running one at `>>` can crash the app.
+On Termux, run each wizard in the shell, after you type `exit`. Running one at `>>` can crash the app.
 
-**Check:** Run `clio` again. At the `>>` prompt, type `setup`. Neovim and Git should be named on the screen. Type `exit` to leave Clio.
+**Check:** Run `clio` again. At the `>>` prompt, type `setup`. You should see a list that names Neovim and Git, each marked downloaded or not downloaded. Type `exit` to leave Clio.
 
 ## 3. Prepare the device
 
 **Terminal, phone only.** Skip this on a computer.
 
 ```bash
-clio-run-module termux_setup setup
+clio termux_setup
 ```
 
 Say yes to storage and the shell. When it asks **Build HTML pages?**, say yes. Pico CSS is saved at `~/.clio/share/pico.classless.min.css`. Say no to extra languages unless you want them. Plugins and the API key are next. If your shell switched to Zsh, open a new Termux session.
@@ -57,7 +57,7 @@ Say yes to storage and the shell. When it asks **Build HTML pages?**, say yes. P
 **Terminal**
 
 ```bash
-clio-run-module neovim_setup setup
+clio neovim_setup
 ```
 
 Paste your DeepSeek key when asked. Input is hidden. It is stored in `~/.config/gp/deepseek.key`, outside the site, so it is not pushed to GitHub.
@@ -92,7 +92,7 @@ Press `i` to type, Esc to return to normal mode. The first reply can take a whil
 **Terminal**
 
 ```bash
-clio-run-module git_setup setup
+clio git_setup
 gh auth login
 ```
 

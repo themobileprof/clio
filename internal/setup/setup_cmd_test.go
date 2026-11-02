@@ -46,7 +46,7 @@ func TestRunCommandFor(t *testing.T) {
 	if w == nil {
 		t.Fatal("neovim wizard not found")
 	}
-	want := "clio-run-module neovim_setup setup"
+	want := "clio neovim_setup"
 	if got := RunCommandFor(*w); got != want {
 		t.Fatalf("RunCommandFor(neovim) = %q, want %q", got, want)
 	}

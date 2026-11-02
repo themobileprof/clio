@@ -77,7 +77,7 @@ func TestDownloadAndRunCommands(t *testing.T) {
 	if got := DownloadCommand("copy_file"); got != "download copy_file" {
 		t.Fatalf("DownloadCommand = %q", got)
 	}
-	if got := RunCommand("copy_file", ""); got != "clio-run-module copy_file setup" {
+	if got := RunCommand("copy_file", ""); got != "clio copy_file" {
 		t.Fatalf("RunCommand = %q", got)
 	}
 }

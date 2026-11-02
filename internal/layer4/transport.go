@@ -2,6 +2,7 @@ package layer4
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
@@ -12,6 +13,13 @@ const maxResponseBytes = 4096
 // dnsFallback helps Termux when system DNS fails for the registry host.
 var dnsFallback = map[string]string{
 	"clipilot.themobileprof.com": "157.230.148.144",
+}
+
+// NewHTTPClient is the shared client for registry and GitHub calls.
+// It falls back when Termux DNS fails, and it trusts ISRG Root X1 so a
+// phone with an empty system store can still verify the registry.
+func NewHTTPClient(timeout time.Duration) *http.Client {
+	return newHTTPClient(timeout)
 }
 
 func newHTTPClient(timeout time.Duration) *http.Client {
@@ -35,6 +43,10 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 		MaxIdleConns:        2,
 		IdleConnTimeout:     60 * time.Second,
 		TLSHandshakeTimeout: 8 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAs(),
+		},
 	}
 	return &http.Client{Timeout: timeout, Transport: transport}
 }

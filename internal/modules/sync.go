@@ -3,6 +3,7 @@ package modules
 import (
 	"clio/internal/config"
 	"clio/internal/layer3"
+	"clio/internal/layer4"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 
 const maxModuleBytes = 2 << 20 // 2 MiB per module — prevents OOM on small devices
 
-var syncHTTP = &http.Client{Timeout: 30 * time.Second}
+var syncHTTP = layer4.NewHTTPClient(30 * time.Second)
 
 const (
 	RepoOwner   = "themobileprof"
@@ -213,7 +214,7 @@ func SyncFromGitHub(lite bool) error {
 
 	// 1. List modules directory
 	url := fmt.Sprintf("%s/%s/%s/contents/%s", GitHubAPI, RepoOwner, RepoName, ModulesPath)
-	resp, err := http.Get(url)
+	resp, err := syncHTTP.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to fetch module list: %w", err)
 	}

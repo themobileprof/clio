@@ -248,7 +248,8 @@ for ((i=0; i<STEP_COUNT; i++)); do
             title_var="STEP_${i}_TITLE"
             sub_count_var="STEP_${i}_SUB_COUNT"
             
-            ((SECTION_INDEX++))
+            # ((n++)) returns failure when n is 0, and set -e then ends the wizard.
+            SECTION_INDEX=$((SECTION_INDEX + 1))
             echo ""
             echo "[$SECTION_INDEX/$SECTION_COUNT] ${!title_var}"
             echo "────────────────────────────────────────────────────────────"

@@ -33,16 +33,42 @@ type GitHubContent struct {
 	Type        string `json:"type"`
 }
 
+// ChangedModule is one row from /api/v1/modules/changed.
+// The registry returns every past upload, so several rows can share an id.
+type ChangedModule struct {
+	ID             string `json:"id"`
+	Version        string `json:"version"`
+	ChecksumSHA256 string `json:"checksum_sha256"`
+	UpdatedAt      string `json:"updated_at"`
+	ChangeType     string `json:"change_type"`
+}
+
 // ChangedModulesResponse represents the response from /api/v1/modules/changed
 type ChangedModulesResponse struct {
-	ChangedModules []struct {
-		ID             string `json:"id"`
-		Version        string `json:"version"`
-		ChecksumSHA256 string `json:"checksum_sha256"`
-		UpdatedAt      string `json:"updated_at"`
-		ChangeType     string `json:"change_type"`
-	} `json:"changed_modules"`
-	SyncTimestamp string `json:"sync_timestamp"`
+	ChangedModules []ChangedModule `json:"changed_modules"`
+	SyncTimestamp  string          `json:"sync_timestamp"`
+}
+
+// latestChanged keeps the newest upload for each module id.
+// RFC3339 timestamps sort lexicographically.
+func latestChanged(mods []ChangedModule) []ChangedModule {
+	order := make([]string, 0, len(mods))
+	byID := make(map[string]ChangedModule, len(mods))
+	for _, mod := range mods {
+		prev, ok := byID[mod.ID]
+		if ok && mod.UpdatedAt < prev.UpdatedAt {
+			continue
+		}
+		if !ok {
+			order = append(order, mod.ID)
+		}
+		byID[mod.ID] = mod
+	}
+	out := make([]ChangedModule, 0, len(order))
+	for _, id := range order {
+		out = append(out, byID[id])
+	}
+	return out
 }
 
 type ModuleYAML struct {
@@ -96,15 +122,10 @@ func SyncFromRegistry(lite bool) error {
 	registryURL := config.GetRegistryURL()
 	fmt.Println("🔄 Syncing modules from registry...")
 
-	// Get last sync timestamp
-	lastSync, err := layer3.GetLastSyncTimestamp()
-	if err != nil {
-		lastSync = time.Time{} // First sync
-	}
-
-	// Call delta sync endpoint
+	// Ask for the whole catalog. A previous sync stored "now" even when every
+	// save failed, and a delta from that time stays empty forever.
 	url := fmt.Sprintf("%s/api/v1/modules/changed?since=%s",
-		registryURL, lastSync.Format(time.RFC3339))
+		registryURL, time.Time{}.Format(time.RFC3339))
 
 	resp, err := syncHTTP.Get(url)
 	if err != nil {
@@ -122,8 +143,9 @@ func SyncFromRegistry(lite bool) error {
 	}
 
 	count := 0
+	failed := 0
 	skipped := 0
-	for _, mod := range changedResp.ChangedModules {
+	for _, mod := range latestChanged(changedResp.ChangedModules) {
 		if lite && !isEssentialModule(mod.ID) {
 			skipped++
 			continue
@@ -131,30 +153,37 @@ func SyncFromRegistry(lite bool) error {
 
 		// Check if we need to download (checksum differs)
 		localChecksum, err := layer3.GetModuleChecksum(mod.ID)
-		if err == nil && localChecksum == mod.ChecksumSHA256 {
-			// Already up to date
+		if err == nil && localChecksum == mod.ChecksumSHA256 && localChecksum != "" {
 			continue
 		}
 
 		fmt.Printf("  Downloading %s...\n", mod.ID)
 		if err := downloadAndSaveModule(registryURL, mod.ID); err != nil {
 			fmt.Printf("  ❌ Failed %s: %v\n", mod.ID, err)
-		} else {
-			count++
+			failed++
+			continue
 		}
+		count++
 
 		// Be nice to server
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Save sync timestamp
-	if err := layer3.SaveLastSyncTimestamp(time.Now()); err != nil {
-		fmt.Printf("Warning: failed to save sync timestamp: %v\n", err)
+	// Only remember a sync that actually stored everything it tried to store.
+	if failed == 0 {
+		if err := layer3.SaveLastSyncTimestamp(time.Now()); err != nil {
+			fmt.Printf("Warning: failed to save sync timestamp: %v\n", err)
+		}
 	}
 
-	if lite && skipped > 0 {
+	switch {
+	case failed > 0:
+		fmt.Printf("Sync saved %d modules. %d failed and will be retried on the next sync.\n", count, failed)
+	case count == 0:
+		fmt.Println("✅ Sync complete. Already up to date.")
+	case lite && skipped > 0:
 		fmt.Printf("✅ Lite sync complete. Updated %d modules (%d skipped).\n", count, skipped)
-	} else {
+	default:
 		fmt.Printf("✅ Sync complete. Updated %d modules.\n", count)
 	}
 	return nil

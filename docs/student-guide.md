@@ -40,7 +40,7 @@ At `>>` type `sync`, wait until it finishes, then `exit`.
 
 On Termux, run wizards with `clio-run-module` in the shell. Running one at `>>` can crash the app.
 
-**Check:** `clio`, then `setup`, lists Neovim and Git. Type `exit`.
+**Check:** Run `clio` again. At the `>>` prompt, type `setup`. Neovim and Git should be named on the screen. Type `exit` to leave Clio.
 
 ## 3. Prepare the device
 

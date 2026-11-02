@@ -58,7 +58,7 @@ flows:
 		t.Fatal(err)
 	}
 
-	out, err := exec.Command("bash", "-c", `source "$1"; printf '%s' "$STEP_0_COMMAND"`, "bash", path).Output()
+	out, err := exec.Command("bash", "-c", `set -euo pipefail; source "$1"; printf '%s' "$STEP_0_COMMAND"`, "bash", path).Output()
 	if err != nil {
 		t.Fatalf("source failed: %v\n%s", err, script)
 	}

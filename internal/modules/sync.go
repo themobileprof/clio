@@ -434,7 +434,9 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 		}
 
 		script.WriteString(fmt.Sprintf("STEP_COUNT=%d\n", len(flow.Steps)))
-		script.WriteString("---FLOW_END---\n\n")
+		// A comment, not a command. The shell sources this file, and a bare
+		// ---FLOW_END--- line is executed and fails with "command not found".
+		script.WriteString("# ---FLOW_END---\n\n")
 	}
 
 	return script.String(), nil

@@ -157,13 +157,16 @@ if [ -z "$BASH_SCRIPT" ]; then
     exit 1
 fi
 
-# Write script to temp file
+# Write script to temp file. Older syncs stored ---FLOW_END--- as a real
+# line. The shell would try to run it.
 TEMP_SCRIPT=$(mktemp)
+CLEAN_SCRIPT=$(mktemp)
 printf '%s\n' "$BASH_SCRIPT" > "$TEMP_SCRIPT"
-trap "rm -f $TEMP_SCRIPT" EXIT
+grep -v '^---FLOW_END---$' "$TEMP_SCRIPT" > "$CLEAN_SCRIPT" || true
+trap "rm -f $TEMP_SCRIPT $CLEAN_SCRIPT" EXIT
 
 # Source the variables
-source "$TEMP_SCRIPT"
+source "$CLEAN_SCRIPT"
 
 # Display module info
 echo "📋 $MODULE_NAME"

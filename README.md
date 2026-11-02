@@ -96,9 +96,8 @@ Or if you have the repository:
 ```
 
 The uninstall script will:
-- Remove the Clio binary
-- Optionally remove configuration directory (`~/.clio`) and modules
-- Optionally remove database (`~/.clio.db`) with cached data
+- Remove the Clio program
+- Optionally remove `~/.clio`, which holds the database, Pico CSS, and downloaded modules
 
 ## Usage
 

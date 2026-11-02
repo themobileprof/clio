@@ -372,64 +372,14 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 		script.WriteString(fmt.Sprintf("SECTION_COUNT=%d\n", sectionCount))
 		script.WriteString("\n")
 
-		// Write steps
 		for i, step := range flow.Steps {
-			script.WriteString(fmt.Sprintf("STEP_%d_TYPE=%s\n", i, step.Type))
-
-			if step.Content != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_CONTENT", i), step.Content))
-			}
-			if step.Command != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_COMMAND", i), step.Command))
-			}
-			if step.Description != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_DESCRIPTION", i), step.Description))
-			}
-			if step.Prompt != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_PROMPT", i), step.Prompt))
-			}
-			if step.Default != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_DEFAULT", i), step.Default))
-			}
-			if step.ShowOutput {
-				script.WriteString(fmt.Sprintf("STEP_%d_SHOW_OUTPUT=true\n", i))
-			}
-			if step.Interactive {
-				script.WriteString(fmt.Sprintf("STEP_%d_INTERACTIVE=true\n", i))
-			}
-			if step.ContinueOnError {
-				script.WriteString(fmt.Sprintf("STEP_%d_CONTINUE_ON_ERROR=true\n", i))
-			}
-			if step.OnNo != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_ON_NO", i), step.OnNo))
-			}
-			if step.Title != "" {
-				script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_TITLE", i), step.Title))
-			}
-
-			// Handle nested steps in sections
+			writeStepVars(&script, fmt.Sprintf("STEP_%d", i), step)
 			if len(step.Steps) > 0 {
 				for j, substep := range step.Steps {
-					script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_TYPE=%s\n", i, j, substep.Type))
-					if substep.Command != "" {
-						script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_SUB_%d_COMMAND", i, j), substep.Command))
-					}
-					if substep.Description != "" {
-						script.WriteString(shellAssign(fmt.Sprintf("STEP_%d_SUB_%d_DESCRIPTION", i, j), substep.Description))
-					}
-					if substep.ShowOutput {
-						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_SHOW_OUTPUT=true\n", i, j))
-					}
-					if substep.Interactive {
-						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_INTERACTIVE=true\n", i, j))
-					}
-					if substep.ContinueOnError {
-						script.WriteString(fmt.Sprintf("STEP_%d_SUB_%d_CONTINUE_ON_ERROR=true\n", i, j))
-					}
+					writeStepVars(&script, fmt.Sprintf("STEP_%d_SUB_%d", i, j), substep)
 				}
 				script.WriteString(fmt.Sprintf("STEP_%d_SUB_COUNT=%d\n", i, len(step.Steps)))
 			}
-
 			script.WriteString("\n")
 		}
 
@@ -440,6 +390,42 @@ func convertYAMLToBashScript(yamlContent string) (string, error) {
 	}
 
 	return script.String(), nil
+}
+
+// writeStepVars records every field the shell runner may read.
+// Omitted flags stay unset; the runner treats a missing flag as false.
+func writeStepVars(b *strings.Builder, id string, step Step) {
+	b.WriteString(fmt.Sprintf("%s_TYPE=%s\n", id, step.Type))
+	assign := func(suffix, value string) {
+		if value != "" {
+			b.WriteString(shellAssign(id+"_"+suffix, value))
+		}
+	}
+	flag := func(suffix string, on bool) {
+		if on {
+			b.WriteString(fmt.Sprintf("%s_%s=true\n", id, suffix))
+		}
+	}
+	assign("CONTENT", step.Content)
+	assign("COMMAND", step.Command)
+	assign("DESCRIPTION", step.Description)
+	assign("PROMPT", step.Prompt)
+	assign("DEFAULT", step.Default)
+	assign("ON_NO", step.OnNo)
+	assign("ON_YES", step.OnYes)
+	assign("ON_EXISTS", step.OnExists)
+	assign("ON_MISSING", step.OnMissing)
+	assign("TITLE", step.Title)
+	assign("PATH", step.Path)
+	assign("NAME", step.Name)
+	assign("LABEL", step.Label)
+	assign("OPERATION", step.Operation)
+	assign("VARIABLE", step.Variable)
+	assign("CONDITION", step.Condition)
+	flag("SHOW_OUTPUT", step.ShowOutput)
+	flag("INTERACTIVE", step.Interactive)
+	flag("CONTINUE_ON_ERROR", step.ContinueOnError)
+	flag("REQUIRED", step.Required)
 }
 
 // shellAssign writes name=$(cat <<'DELIM' ... DELIM) so multiline commands,

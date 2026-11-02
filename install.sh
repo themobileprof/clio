@@ -174,140 +174,276 @@ echo "📋 $MODULE_NAME"
 [ -n "$ESTIMATED_TIME" ] && echo "   ⏱️  Estimated time: $ESTIMATED_TIME"
 echo ""
 
-# Execute steps
-SECTION_INDEX=0
-for ((i=0; i<STEP_COUNT; i++)); do
-    type_var="STEP_${i}_TYPE"
-    step_type="${!type_var}"
-    
+# val NAME prints the variable or nothing. Missing flags are not errors.
+val() {
+    local name=$1
+    if [ "${!name+x}" = "x" ]; then
+        printf '%s' "${!name}"
+    fi
+}
+
+# Replace {{ .NAME }} with the shell variable NAME.
+expand_vars() {
+    local text=$1 name token
+    while [[ $text =~ \{\{[[:space:]]*\.?[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\}\} ]]; do
+        token="${BASH_REMATCH[0]}"
+        name="${BASH_REMATCH[1]}"
+        text="${text//"$token"/$(val "$name")}"
+    done
+    printf '%s' "$text"
+}
+
+configure_zshrc() {
+    local f="$HOME/.zshrc"
+    if [ ! -f "$f" ]; then
+        cat > "$f" << 'EOF'
+# Zsh configuration
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="powerlevel10k/powerlevel10k"
+plugins=(git z sudo colored-man-pages)
+source $ZSH/oh-my-zsh.sh
+EOF
+    fi
+    if ! grep -q powerlevel10k "$f" 2>/dev/null; then
+        sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$f" || true
+    fi
+    if ! grep -q 'alias ll=' "$f" 2>/dev/null; then
+        cat >> "$f" << 'EOF'
+
+# Useful aliases
+alias ll="ls -lah"
+alias la="ls -A"
+alias l="ls -CF"
+alias ..="cd .."
+alias ...="cd ../.."
+EOF
+    fi
+}
+
+mark_setup_complete() {
+    mkdir -p "$HOME/.clio"
+    printf '1\n' > "$HOME/.clio/termux_setup_complete"
+}
+
+run_command() {
+    local id=$1
+    local desc cmd show interactive cont cond
+    desc=$(val "${id}_DESCRIPTION")
+    cmd=$(val "${id}_COMMAND")
+    show=$(val "${id}_SHOW_OUTPUT")
+    interactive=$(val "${id}_INTERACTIVE")
+    cont=$(val "${id}_CONTINUE_ON_ERROR")
+    cond=$(val "${id}_CONDITION")
+    if [ -n "$cond" ]; then
+        cond=$(expand_vars "$cond")
+        if [ -z "$cond" ] || [ "$cond" = "false" ]; then
+            return 0
+        fi
+    fi
+    [ -n "$desc" ] && echo "${desc}..."
+    if [ -z "$cmd" ]; then
+        echo "⚠️  Skipping an empty command"
+        return 0
+    fi
+    cmd=$(expand_vars "$cmd")
+    # Wizard commands were written for a normal shell. nounset turns a missing
+    # optional flag into "unbound variable", and pipefail turns "cmd | head"
+    # into a failure when the writer gets SIGPIPE. Keep errexit so a real
+    # failing command still stops the step.
+    local status=0
+    set +u
+    set +o pipefail
+    if [ "$interactive" = "true" ] || [ "$show" = "true" ]; then
+        eval "$cmd" || status=$?
+    else
+        eval "$cmd" >/dev/null 2>&1 || status=$?
+    fi
+    set -u
+    set -o pipefail
+    if [ "$status" -ne 0 ]; then
+        if [ "$cont" != "true" ]; then
+            echo "❌ Command failed"
+            return 1
+        fi
+        echo "⚠️  Warning: Command failed"
+    fi
+}
+
+# run_one returns 10 when the caller should jump to GOTO_LABEL.
+run_one() {
+    local prefix=$1 i=$2
+    local id="${prefix}${i}"
+    local step_type
+    step_type=$(val "${id}_TYPE")
     case "$step_type" in
         message)
-            content_var="STEP_${i}_CONTENT"
-            echo -e "${!content_var}"
+            printf '%b\n' "$(val "${id}_CONTENT")"
             ;;
         confirm)
-            prompt_var="STEP_${i}_PROMPT"
-            default_var="STEP_${i}_DEFAULT"
-            on_no_var="STEP_${i}_ON_NO"
-            
-            prompt_text="${!prompt_var:-Continue?}"
-            default_val="${!default_var:-yes}"
-            on_no="${!on_no_var}"
-            
+            local prompt default on_no on_yes hint response
+            prompt=$(val "${id}_PROMPT")
+            default=$(val "${id}_DEFAULT")
+            on_no=$(val "${id}_ON_NO")
+            on_yes=$(val "${id}_ON_YES")
+            [ -z "$prompt" ] && prompt="Continue?"
+            [ -z "$default" ] && default="yes"
             hint="[Y/n]"
-            [ "$default_val" != "yes" ] && hint="[y/N]"
-            
-            read -p "$prompt_text $hint: " response
-            response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
-            [ -z "$response" ] && response="$default_val"
-            
-            if [[ "$response" =~ ^n(o)?$ ]]; then
+            [ "$default" != "yes" ] && [ "$default" != "y" ] && hint="[y/N]"
+            if ! read -r -p "$prompt $hint: " response; then
+                echo "❌ No answer, stopping"
+                exit 0
+            fi
+            response=$(printf '%s' "$response" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+            [ -z "$response" ] && response="$default"
+            if [[ "$response" =~ ^y(es)?$ ]]; then
+                if [ -n "$on_yes" ]; then
+                    GOTO_LABEL=$on_yes
+                    return 10
+                fi
+            else
                 if [ "$on_no" = "abort" ]; then
                     echo "❌ Aborted by user"
                     exit 0
                 fi
+                if [ -n "$on_no" ]; then
+                    GOTO_LABEL=$on_no
+                    return 10
+                fi
+            fi
+            ;;
+        input)
+            local prompt var required value
+            prompt=$(val "${id}_PROMPT")
+            var=$(val "${id}_VARIABLE")
+            required=$(val "${id}_REQUIRED")
+            while true; do
+                if ! read -r -p "$prompt: " value; then
+                    echo "❌ No answer, stopping"
+                    exit 0
+                fi
+                value="${value#"${value%%[![:space:]]*}"}"
+                value="${value%"${value##*[![:space:]]}"}"
+                if [ -n "$value" ] || [ "$required" != "true" ]; then
+                    break
+                fi
+                echo "This field is required."
+            done
+            if [ -n "$var" ]; then
+                printf -v "$var" '%s' "$value"
             fi
             ;;
         command)
-            desc_var="STEP_${i}_DESCRIPTION"
-            cmd_var="STEP_${i}_COMMAND"
-            show_var="STEP_${i}_SHOW_OUTPUT"
-            interactive_var="STEP_${i}_INTERACTIVE"
-            continue_var="STEP_${i}_CONTINUE_ON_ERROR"
-            
-            [ -n "${!desc_var}" ] && echo "${!desc_var}..."
-            
-            cmd="${!cmd_var}"
-            if [ "${!interactive_var}" = "true" ]; then
-                eval "$cmd" || {
-                    if [ "${!continue_var}" != "true" ]; then
-                        echo "❌ Command failed"
-                        exit 1
-                    fi
-                    echo "⚠️  Warning: Command failed"
-                }
-            elif [ "${!show_var}" = "true" ]; then
-                eval "$cmd" || {
-                    if [ "${!continue_var}" != "true" ]; then
-                        echo "❌ Command failed"
-                        exit 1
-                    fi
-                    echo "⚠️  Warning: Command failed"
-                }
-            else
-                eval "$cmd" >/dev/null 2>&1 || {
-                    if [ "${!continue_var}" != "true" ]; then
-                        echo "❌ Command failed"
-                        exit 1
-                    fi
-                    echo "⚠️  Warning: Command failed"
-                }
-            fi
+            run_command "$id" || return $?
             ;;
         section)
-            title_var="STEP_${i}_TITLE"
-            sub_count_var="STEP_${i}_SUB_COUNT"
-            
-            # ((n++)) returns failure when n is 0, and set -e then ends the wizard.
+            local title count
             SECTION_INDEX=$((SECTION_INDEX + 1))
+            title=$(val "${id}_TITLE")
+            count=$(val "${id}_SUB_COUNT")
+            [ -z "$count" ] && count=0
             echo ""
-            echo "[$SECTION_INDEX/$SECTION_COUNT] ${!title_var}"
+            echo "[$SECTION_INDEX/$(val SECTION_COUNT)] $title"
             echo "────────────────────────────────────────────────────────────"
-            
-            # Execute substeps
-            sub_count="${!sub_count_var:-0}"
-            for ((j=0; j<sub_count; j++)); do
-                sub_type_var="STEP_${i}_SUB_${j}_TYPE"
-                sub_type="${!sub_type_var}"
-                
-                if [ "$sub_type" = "command" ]; then
-                    sub_desc_var="STEP_${i}_SUB_${j}_DESCRIPTION"
-                    sub_cmd_var="STEP_${i}_SUB_${j}_COMMAND"
-                    sub_show_var="STEP_${i}_SUB_${j}_SHOW_OUTPUT"
-                    sub_interactive_var="STEP_${i}_SUB_${j}_INTERACTIVE"
-                    sub_continue_var="STEP_${i}_SUB_${j}_CONTINUE_ON_ERROR"
-                    
-                    [ -n "${!sub_desc_var}" ] && echo "${!sub_desc_var}..."
-                    
-                    sub_cmd="${!sub_cmd_var}"
-                    if [ "${!sub_interactive_var}" = "true" ]; then
-                        eval "$sub_cmd" || {
-                            if [ "${!sub_continue_var}" != "true" ]; then
-                                echo "❌ Command failed"
-                                exit 1
-                            fi
-                            echo "⚠️  Warning: Command failed"
-                        }
-                    elif [ "${!sub_show_var}" = "true" ]; then
-                        eval "$sub_cmd" || {
-                            if [ "${!sub_continue_var}" != "true" ]; then
-                                echo "❌ Command failed"
-                                exit 1
-                            fi
-                            echo "⚠️  Warning: Command failed"
-                        }
-                    else
-                        eval "$sub_cmd" >/dev/null 2>&1 || {
-                            if [ "${!sub_continue_var}" != "true" ]; then
-                                echo "❌ Command failed"
-                                exit 1
-                            fi
-                            echo "⚠️  Warning: Command failed"
-                        }
-                    fi
-                fi
-            done
-            
-            echo "✅ ${!title_var} complete"
+            run_list "${id}_SUB_" "$count" || return $?
+            echo "✅ $title complete"
             ;;
         check_command)
-            cmd_var="STEP_${i}_COMMAND"
-            command -v "${!cmd_var}" >/dev/null 2>&1 || {
-                echo "⚠️  Command '${!cmd_var}' not found, skipping..."
-            }
+            local cmd on_missing on_exists
+            cmd=$(val "${id}_COMMAND")
+            on_missing=$(val "${id}_ON_MISSING")
+            on_exists=$(val "${id}_ON_EXISTS")
+            if command -v "$cmd" >/dev/null 2>&1; then
+                if [ -n "$on_exists" ] && [ "$on_exists" != "skip" ]; then
+                    GOTO_LABEL=$on_exists
+                    return 10
+                fi
+            else
+                if [ -n "$on_missing" ] && [ "$on_missing" != "skip" ]; then
+                    GOTO_LABEL=$on_missing
+                    return 10
+                fi
+            fi
+            ;;
+        check_path)
+            local path on_missing on_exists
+            path=$(val "${id}_PATH")
+            path="${path/#\~/$HOME}"
+            on_missing=$(val "${id}_ON_MISSING")
+            on_exists=$(val "${id}_ON_EXISTS")
+            if [ -e "$path" ]; then
+                if [ -n "$on_exists" ] && [ "$on_exists" != "skip" ]; then
+                    GOTO_LABEL=$on_exists
+                    return 10
+                fi
+            else
+                if [ -n "$on_missing" ] && [ "$on_missing" != "skip" ]; then
+                    GOTO_LABEL=$on_missing
+                    return 10
+                fi
+            fi
+            ;;
+        label)
+            ;;
+        goto)
+            GOTO_LABEL=$(val "${id}_LABEL")
+            return 10
+            ;;
+        file_operation)
+            local op desc
+            op=$(val "${id}_OPERATION")
+            desc=$(val "${id}_DESCRIPTION")
+            [ -n "$desc" ] && echo "${desc}..."
+            case "$op" in
+                configure_zshrc) configure_zshrc ;;
+                mark_complete) mark_setup_complete ;;
+                *) echo "⚠️  Skipping unknown file operation: $op" ;;
+            esac
+            ;;
+        "")
+            ;;
+        *)
+            echo "⚠️  Skipping unknown step: $step_type"
             ;;
     esac
-done
+    return 0
+}
+
+# run_list walks steps. A return of 10 jumps to GOTO_LABEL in this list.
+run_list() {
+    local prefix=$1 count=$2
+    local -A labels=()
+    local i=0 step_type name status
+    while [ "$i" -lt "$count" ]; do
+        step_type=$(val "${prefix}${i}_TYPE")
+        if [ "$step_type" = "label" ]; then
+            name=$(val "${prefix}${i}_NAME")
+            [ -n "$name" ] && labels[$name]=$i
+        fi
+        i=$((i + 1))
+    done
+    i=0
+    while [ "$i" -lt "$count" ]; do
+        status=0
+        run_one "$prefix" "$i" || status=$?
+        if [ "$status" -eq 10 ]; then
+            name=$GOTO_LABEL
+            if [ -z "${labels[$name]+x}" ]; then
+                echo "❌ Unknown step: $name"
+                return 1
+            fi
+            i=${labels[$name]}
+            continue
+        fi
+        if [ "$status" -ne 0 ]; then
+            return "$status"
+        fi
+        i=$((i + 1))
+    done
+}
+
+SECTION_INDEX=0
+GOTO_LABEL=
+run_list "STEP_" "$STEP_COUNT"
 
 echo ""
 echo "✅ Module execution completed!"

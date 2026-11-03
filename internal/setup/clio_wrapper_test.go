@@ -48,7 +48,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		"    printf '%s\\n' deepseek/deepseek-chat gemini-3.8-flash\n" +
 		"    ;;\n" +
 		"esac\n"
-	if err := os.WriteFile(filepath.Join(dir, "python"), []byte("#!/bin/bash\nif [ -f \"$HOME/offline\" ]; then exit 1; fi\nexit 0\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "python"), []byte("#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$HOME/python-args\"\ncat >/dev/null\nif [ -f \"$HOME/key-status\" ]; then exit \"$(cat \"$HOME/key-status\")\"; fi\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "llm"), []byte(llm), 0o755); err != nil {
@@ -59,27 +59,32 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run := func(args ...string) string {
+	probe := filepath.Join(home, "python-args")
+	execClio := func(in string, fail bool, args ...string) string {
 		t.Helper()
 		os.Remove(record)
+		os.Remove(probe)
 		cmd := exec.Command(filepath.Join(dir, "clio"), args...)
 		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "HOME="+home)
+		if in != "" {
+			cmd.Stdin = strings.NewReader(in)
+		}
 		out, err := cmd.CombinedOutput()
-		if err != nil {
+		if fail && err == nil {
+			t.Fatalf("clio %v succeeded:\n%s", args, out)
+		}
+		if !fail && err != nil {
 			t.Fatalf("clio %v: %v\n%s", args, err, out)
 		}
 		return string(out)
 	}
+	run := func(args ...string) string {
+		t.Helper()
+		return execClio("", false, args...)
+	}
 	runFail := func(args ...string) string {
 		t.Helper()
-		os.Remove(record)
-		cmd := exec.Command(filepath.Join(dir, "clio"), args...)
-		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "HOME="+home)
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("clio %v succeeded:\n%s", args, out)
-		}
-		return string(out)
+		return execClio("", true, args...)
 	}
 	wrote := func() string {
 		t.Helper()
@@ -98,6 +103,9 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	}
 	if body := wrote(); !strings.Contains(body, "-m deepseek/deepseek-chat extract tar file") {
 		t.Fatalf("online question did not reach the model: %q", body)
+	}
+	if _, err := os.Stat(probe); !os.IsNotExist(err) {
+		t.Fatal("asking checked the key again")
 	}
 
 	if got := run("ask", "your question"); got != "" {
@@ -128,11 +136,27 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		t.Fatalf("available gemini args: %q", body)
 	}
 
-	if got := run("key", "deepseek"); got != "" {
+	if got := execClio("sk-test\n", false, "key", "deepseek"); !strings.Contains(got, "Saved the deepseek key.") {
 		t.Fatalf("key printed %q", got)
 	}
 	if body := wrote(); !strings.Contains(body, "keys set deepseek") || strings.Contains(body, "install ") {
 		t.Fatalf("key command: %q", body)
+	}
+	if _, err := os.Stat(probe); err != nil {
+		t.Fatal("saving a key did not check it")
+	}
+	if err := os.WriteFile(filepath.Join(home, "key-status"), []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := execClio("sk-bad\n", true, "key", "deepseek")
+	if !strings.Contains(got, "That deepseek key was rejected. It was not saved.") {
+		t.Fatalf("rejected key: %q", got)
+	}
+	if _, err := os.Stat(record); err == nil && strings.Contains(wrote(), "keys set") {
+		t.Fatal("rejected key was stored")
+	}
+	if err := os.Remove(filepath.Join(home, "key-status")); err != nil {
+		t.Fatal(err)
 	}
 
 	if got := run("termux_setup"); !strings.Contains(got, "MODULE termux_setup") {
@@ -142,7 +166,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		t.Fatalf("wizard called the model tool")
 	}
 
-	got := runFail("what", "is", "html")
+	got = runFail("what", "is", "html")
 	if !strings.Contains(got, "clio ask") {
 		t.Fatalf("sentence usage: %q", got)
 	}
@@ -155,24 +179,9 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		t.Fatalf("key usage: %q", got)
 	}
 
-	offline := filepath.Join(home, "offline")
-	if err := os.WriteFile(offline, []byte("1"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(keys, []byte("deepseek\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got = run("ask", "extract tar file")
-	if !strings.Contains(got, "No internet. Offline answer:") || !strings.Contains(got, "Use: tar -xzvf") {
-		t.Fatalf("offline fallback: %q", got)
-	}
-	if strings.Contains(wrote(), "-m ") {
-		t.Fatal("no internet still called the model")
-	}
-	if err := os.Remove(offline); err != nil {
-		t.Fatal(err)
-	}
-
 	if err := os.WriteFile(filepath.Join(home, "llm-fail"), []byte("1"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -516,13 +516,43 @@ pick_provider() {
     return 1
 }
 
-online() {
-    local py
+validate_key() {
+    local name="$1" url header py
+    case "$name" in
+        deepseek)
+            url=https://api.deepseek.com/models
+            header=Authorization
+            ;;
+        gemini)
+            url=https://generativelanguage.googleapis.com/v1beta/models
+            header=x-goog-api-key
+            ;;
+        *)
+            return 2
+            ;;
+    esac
     py=$(command -v python || command -v python3 || true)
     if [ -z "$py" ]; then
-        return 1
+        return 3
     fi
-    "$py" -c 'import socket,sys; socket.create_connection((sys.argv[1], 443), 3)' "$1"
+    printf '%s' "$KEY" | "$py" -c '
+import sys
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+url, header = sys.argv[1], sys.argv[2]
+key = sys.stdin.read().strip()
+if not key:
+    sys.exit(4)
+value = ("Bearer " + key) if header == "Authorization" else key
+req = Request(url, headers={header: value})
+try:
+    with urlopen(req, timeout=10) as resp:
+        sys.exit(0 if resp.status == 200 else 2)
+except HTTPError:
+    sys.exit(2)
+except URLError:
+    sys.exit(3)
+' "$url" "$header"
 }
 
 offline_answer() {
@@ -543,29 +573,20 @@ offline_answer() {
 }
 
 ask_model() {
-    local model host why=""
+    local model why=""
     if [ "$#" -eq 0 ]; then
         echo "Usage: clio ask 'your question'"
         exit 1
     fi
     if command -v llm >/dev/null 2>&1 && pick_provider; then
         case "$PROVIDER" in
-            deepseek)
-                model=deepseek/deepseek-chat
-                host=api.deepseek.com
-                ;;
-            gemini)
-                model=gemini-3.8-flash
-                host=generativelanguage.googleapis.com
-                ;;
+            deepseek) model=deepseek/deepseek-chat ;;
+            gemini) model=gemini-3.8-flash ;;
         esac
-        if ! online "$host"; then
-            why="No internet. Offline answer:"
-        elif llm -m "$model" "$@"; then
+        if llm -m "$model" "$@"; then
             exit 0
-        else
-            why="The model did not answer. Offline answer:"
         fi
+        why="The model did not answer. Offline answer:"
     fi
     if offline_answer "$why" "$@"; then
         exit 0
@@ -581,12 +602,36 @@ ask_model() {
 }
 
 save_key() {
-    local name="$1" package="$2" needle="$3"
+    local name="$1" package="$2" needle="$3" KEY status=0
     need_llm
+    if [ -t 0 ]; then
+        printf 'Enter your %s API key: ' "$name"
+        IFS= read -rs KEY || true
+        printf '\n'
+    else
+        IFS= read -r KEY || true
+    fi
+    if [ -z "${KEY//[[:space:]]/}" ]; then
+        echo "No key entered. Nothing was saved."
+        exit 1
+    fi
+    validate_key "$name" || status=$?
+    if [ "$status" -ne 0 ]; then
+        if [ "$status" -eq 3 ]; then
+            echo "Could not reach $name. The key was not saved."
+        else
+            echo "That $name key was rejected. It was not saved."
+        fi
+        unset KEY
+        exit 1
+    fi
     if ! llm models | grep -q "$needle"; then
         llm install "$package"
     fi
-    exec llm keys set "$name"
+    printf '%s\n' "$KEY" | llm keys set "$name"
+    unset KEY
+    echo "Saved the $name key."
+    exit 0
 }
 
 if [ $# -eq 0 ]; then

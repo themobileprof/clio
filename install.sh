@@ -453,8 +453,10 @@ chmod +x "$INSTALL_DIR/clio-run-module"
 
 cat > "$INSTALL_DIR/clio" <<'EOWRAPPER'
 #!/bin/bash
-# clio with no arguments opens the prompt.
-# clio termux_setup runs that wizard in this shell, not inside >>.
+# clio                  opens the >> prompt
+# clio termux_setup     runs that wizard in this shell
+# clio ask 'question'   asks DeepSeek
+# clio key              saves the DeepSeek key
 set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 BIN="$SCRIPT_DIR/clio.bin"
@@ -462,13 +464,42 @@ if [ ! -x "$BIN" ]; then
     echo "Clio program is missing at $BIN. Reinstall Clio."
     exit 1
 fi
+
+need_llm() {
+    if ! command -v llm >/dev/null 2>&1; then
+        echo "The model program is missing. Run: clio termux_setup"
+        exit 1
+    fi
+}
+
+ask_model() {
+    need_llm
+    if [ "$#" -eq 0 ]; then
+        echo "Usage: clio ask 'your question'"
+        exit 1
+    fi
+    exec llm -m deepseek/deepseek-chat "$@"
+}
+
 if [ $# -eq 0 ]; then
     exec "$BIN"
 fi
 case "$1" in
     --*) exec "$BIN" "$@" ;;
+    key|keys)
+        need_llm
+        exec llm keys set deepseek
+        ;;
+    ask)
+        shift
+        ask_model "$@"
+        ;;
 esac
-exec "$SCRIPT_DIR/clio-run-module" "$@"
+# One word is a wizard name. A sentence is a question.
+if [ $# -eq 1 ] && [ "${1#* }" = "$1" ]; then
+    exec "$SCRIPT_DIR/clio-run-module" "$@"
+fi
+ask_model "$@"
 EOWRAPPER
 chmod +x "$INSTALL_DIR/clio"
 

@@ -453,17 +453,32 @@ chmod +x "$INSTALL_DIR/clio-run-module"
 
 cat > "$INSTALL_DIR/clio" <<'EOWRAPPER'
 #!/bin/bash
-# clio                  opens the >> prompt
-# clio termux_setup     runs that wizard in this shell
-# clio ask 'question'   asks DeepSeek
-# clio key              saves the DeepSeek key
+# clio                         opens the >> prompt
+# clio termux_setup            runs that wizard in this shell
+# clio ask 'question'          DeepSeek or Gemini when online, otherwise the offline list
+# clio key deepseek            saves the DeepSeek key
+# clio key gemini              saves the Gemini key
+# clio model deepseek|gemini   chooses which one clio ask uses
 set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 BIN="$SCRIPT_DIR/clio.bin"
+MODEL_FILE="$HOME/.config/clio/model"
 if [ ! -x "$BIN" ]; then
     echo "Clio program is missing at $BIN. Reinstall Clio."
     exit 1
 fi
+
+usage() {
+    echo "Usage:"
+    echo "  clio                      open the >> prompt"
+    echo "  clio termux_setup         run that wizard"
+    echo "  clio ask 'your question'  DeepSeek or Gemini, or the offline list"
+    echo "  clio key deepseek         save the DeepSeek key"
+    echo "  clio key gemini           save the Gemini key"
+    echo "  clio model deepseek       ask DeepSeek from now on"
+    echo "  clio model gemini         ask Gemini from now on"
+    exit 1
+}
 
 need_llm() {
     if ! command -v llm >/dev/null 2>&1; then
@@ -472,13 +487,106 @@ need_llm() {
     fi
 }
 
+has_key() {
+    llm keys | grep -qx "$1"
+}
+
+pick_provider() {
+    local choice=""
+    PROVIDER=
+    if [ -f "$MODEL_FILE" ]; then
+        choice=$(tr -d '[:space:]' < "$MODEL_FILE")
+    fi
+    case "$choice" in
+        deepseek|gemini)
+            if has_key "$choice"; then
+                PROVIDER=$choice
+                return 0
+            fi
+            ;;
+    esac
+    if has_key deepseek; then
+        PROVIDER=deepseek
+        return 0
+    fi
+    if has_key gemini; then
+        PROVIDER=gemini
+        return 0
+    fi
+    return 1
+}
+
+online() {
+    local py
+    py=$(command -v python || command -v python3 || true)
+    if [ -z "$py" ]; then
+        return 1
+    fi
+    "$py" -c 'import socket,sys; socket.create_connection((sys.argv[1], 443), 3)' "$1"
+}
+
+offline_answer() {
+    local why="$1"
+    shift
+    local answer
+    if answer=$(printf '%s\n' "$*" | "$BIN" 2>/dev/null) && [ -n "$answer" ]; then
+        if [ -n "$why" ]; then
+            printf '%s\n' "$why"
+        fi
+        printf 'Use: %s\n' "$answer"
+        return 0
+    fi
+    if [ -n "$why" ]; then
+        printf '%s\n' "$why"
+    fi
+    return 1
+}
+
 ask_model() {
-    need_llm
+    local model host why=""
     if [ "$#" -eq 0 ]; then
         echo "Usage: clio ask 'your question'"
         exit 1
     fi
-    exec llm -m deepseek/deepseek-chat "$@"
+    if command -v llm >/dev/null 2>&1 && pick_provider; then
+        case "$PROVIDER" in
+            deepseek)
+                model=deepseek/deepseek-chat
+                host=api.deepseek.com
+                ;;
+            gemini)
+                model=gemini-3.8-flash
+                host=generativelanguage.googleapis.com
+                ;;
+        esac
+        if ! online "$host"; then
+            why="No internet. Offline answer:"
+        elif llm -m "$model" "$@"; then
+            exit 0
+        else
+            why="The model did not answer. Offline answer:"
+        fi
+    fi
+    if offline_answer "$why" "$@"; then
+        exit 0
+    fi
+    if ! command -v llm >/dev/null 2>&1; then
+        echo "The model program is missing. Run: clio termux_setup"
+    else
+        echo "No match in the offline list."
+        echo "  clio key deepseek"
+        echo "  clio key gemini"
+    fi
+    exit 1
+}
+
+save_key() {
+    local name="$1" package="$2" needle="$3"
+    need_llm
+    if ! llm models | grep -q "$needle"; then
+        llm install "$package"
+    fi
+    exec llm keys set "$name"
 }
 
 if [ $# -eq 0 ]; then
@@ -487,19 +595,47 @@ fi
 case "$1" in
     --*) exec "$BIN" "$@" ;;
     key|keys)
-        need_llm
-        exec llm keys set deepseek
+        if [ $# -ne 2 ]; then
+            usage
+        fi
+        case "$2" in
+            deepseek) save_key deepseek llm-deepseek deepseek-chat ;;
+            gemini) save_key gemini llm-gemini gemini-3.8-flash ;;
+            *) usage ;;
+        esac
+        ;;
+    model)
+        if [ $# -eq 1 ]; then
+            if [ -f "$MODEL_FILE" ]; then
+                echo "Saved model: $(tr -d '[:space:]' < "$MODEL_FILE")"
+            else
+                echo "No saved model. Clio asks DeepSeek when that key exists, otherwise Gemini."
+            fi
+            exit 0
+        fi
+        if [ $# -ne 2 ]; then
+            usage
+        fi
+        case "$2" in
+            deepseek|gemini)
+                mkdir -p "$HOME/.config/clio"
+                printf '%s\n' "$2" > "$MODEL_FILE"
+                echo "Clio will ask $2."
+                exit 0
+                ;;
+            *) usage ;;
+        esac
         ;;
     ask)
         shift
         ask_model "$@"
         ;;
 esac
-# One word is a wizard name. A sentence is a question.
-if [ $# -eq 1 ] && [ "${1#* }" = "$1" ]; then
+# One word is a wizard name. A question has to use: clio ask
+if [ $# -eq 1 ]; then
     exec "$SCRIPT_DIR/clio-run-module" "$@"
 fi
-ask_model "$@"
+usage
 EOWRAPPER
 chmod +x "$INSTALL_DIR/clio"
 

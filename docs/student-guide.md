@@ -107,7 +107,7 @@ git config --global user.name
 
 ## 6. Generate the site with Pico CSS
 
-[Pico CSS](https://picocss.com) 2.1.1 supplies the navigation bar, the responsive grid, the article cards, and the footer color. The model writes HTML only. It must not add a `<style>` element.
+[Pico CSS](https://picocss.com) 2.1.1 supplies the navigation bar, the responsive grid, the article cards, and the footer color. On a phone the navigation links stack in a vertical list. The model writes HTML only. It must not add a `<style>` element. A hero belongs on the home page. Other pages use the shape that fits them: prose for an about page, a form for a contact page.
 
 Photos go in `images/` before you generate. Name each file for what it shows, such as `images/hero.jpg`. Neovim passes those exact names into the prompt. The model does not download pictures.
 
@@ -126,6 +126,15 @@ If that file is missing, download it once and copy it again:
 mkdir -p ~/.clio/share
 curl -fsSL -o ~/.clio/share/pico.min.css \
   https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css
+grep -q clio-nav ~/.clio/share/pico.min.css || cat >> ~/.clio/share/pico.min.css << 'EOF'
+
+/* clio-nav: stack the bar on a phone */
+@media (max-width: 767px) {
+  nav, nav ul, nav ol { flex-direction: column; align-items: stretch; }
+  nav li { display: block; }
+  nav li :where(a, [role=link]) { display: block; }
+}
+EOF
 cp ~/.clio/share/pico.min.css css/
 ```
 

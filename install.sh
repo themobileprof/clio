@@ -584,6 +584,21 @@ offline_answer() {
     return 1
 }
 
+ensure_deepseek_model() {
+    local path dir file
+    path=$(llm keys path 2>/dev/null || true)
+    if [ -z "$path" ]; then
+        return 0
+    fi
+    dir=$(dirname "$path")
+    file="$dir/extra-openai-models.yaml"
+    if [ -f "$file" ] && grep -q 'model_id: deepseek-flash' "$file"; then
+        return 0
+    fi
+    mkdir -p "$dir"
+    printf '\n- model_id: deepseek-flash\n  model_name: deepseek-flash\n  api_base: https://api.deepseek.com\n  api_key_name: deepseek\n' >> "$file"
+}
+
 ask_model() {
     local model why=""
     if [ "$#" -eq 0 ]; then
@@ -592,7 +607,10 @@ ask_model() {
     fi
     if command -v llm >/dev/null 2>&1 && pick_provider; then
         case "$PROVIDER" in
-            deepseek) model=deepseek/deepseek-chat ;;
+            deepseek)
+                ensure_deepseek_model
+                model=deepseek-flash
+                ;;
             gemini) model=gemini-3.8-flash ;;
         esac
         if llm -m "$model" "$@"; then

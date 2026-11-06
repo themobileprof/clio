@@ -42,12 +42,13 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		"if [ \"$1\" = \"-m\" ] && [ -f \"$HOME/llm-fail\" ]; then exit 1; fi\n" +
 		"case \"$1\" in\n" +
 		"  keys)\n" +
+		"    if [ \"${2:-}\" = \"path\" ]; then printf '%s\\n' \"$HOME/llm-keys.json\"; exit 0; fi\n" +
 		"    if [ \"${2:-}\" = \"\" ]; then\n" +
 		"      while IFS= read -r line; do printf '%s\\n' \"$line\"; sleep 0.05; done < \"" + keys + "\"\n" +
 		"    fi\n" +
 		"    ;;\n" +
 		"  models)\n" +
-		"    printf '%s\\n' deepseek/deepseek-chat gemini-3.8-flash\n" +
+		"    printf '%s\\n' deepseek-chat deepseek-flash gemini-3.8-flash\n" +
 		"    ;;\n" +
 		"esac\n"
 	if err := os.WriteFile(filepath.Join(dir, "python"), []byte("#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$HOME/python-args\"\ncat >/dev/null\nif [ -f \"$HOME/key-status\" ]; then exit \"$(cat \"$HOME/key-status\")\"; fi\nexit 0\n"), 0o755); err != nil {
@@ -103,7 +104,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := run("ask", "extract tar file"); got != "" {
 		t.Fatalf("online ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek/deepseek-chat extract tar file") {
+	if body := wrote(); !strings.Contains(body, "-m deepseek-flash extract tar file") {
 		t.Fatalf("online question did not reach the model: %q", body)
 	}
 	if _, err := os.Stat(probe); !os.IsNotExist(err) {
@@ -113,7 +114,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := run("ask", "your question"); got != "" {
 		t.Fatalf("ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek/deepseek-chat your question") {
+	if body := wrote(); !strings.Contains(body, "-m deepseek-flash your question") {
 		t.Fatalf("default model args: %q", body)
 	}
 
@@ -191,7 +192,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if !strings.Contains(got, "The model did not answer. Offline answer:") || !strings.Contains(got, "Use: tar -xzvf") {
 		t.Fatalf("failed model fallback: %q", got)
 	}
-	if !strings.Contains(wrote(), "-m deepseek/deepseek-chat extract tar file") {
+	if !strings.Contains(wrote(), "-m deepseek-flash extract tar file") {
 		t.Fatal("failed model was not tried")
 	}
 }

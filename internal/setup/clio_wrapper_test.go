@@ -42,7 +42,9 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		"if [ \"$1\" = \"-m\" ] && [ -f \"$HOME/llm-fail\" ]; then exit 1; fi\n" +
 		"case \"$1\" in\n" +
 		"  keys)\n" +
-		"    if [ \"${2:-}\" = \"\" ]; then cat \"" + keys + "\" 2>/dev/null || true; fi\n" +
+		"    if [ \"${2:-}\" = \"\" ]; then\n" +
+		"      while IFS= read -r line; do printf '%s\\n' \"$line\"; sleep 0.05; done < \"" + keys + "\"\n" +
+		"    fi\n" +
 		"    ;;\n" +
 		"  models)\n" +
 		"    printf '%s\\n' deepseek/deepseek-chat gemini-3.8-flash\n" +

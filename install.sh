@@ -488,7 +488,19 @@ need_llm() {
 }
 
 has_key() {
-    llm keys | grep -qx "$1"
+    # Read the whole list first. grep -q would close the pipe at the first
+    # match, llm would die with a broken pipe, and a saved DeepSeek key
+    # would be treated as missing whenever a Gemini key was saved too.
+    local names
+    names=$(llm keys 2>/dev/null || true)
+    case "
+$names
+" in
+        *"
+$1
+"*) return 0 ;;
+    esac
+    return 1
 }
 
 pick_provider() {

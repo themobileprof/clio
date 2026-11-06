@@ -631,6 +631,12 @@ install_plugin() {
 save_key() {
     local name="$1" package="$2" needle="$3" KEY status=0
     need_llm
+    # Install before the prompt. Pip output used to appear after the key,
+    # and llm then asked for the key a second time.
+    if ! install_plugin "$package" "$needle"; then
+        echo "The $name model program did not install. Nothing was saved."
+        exit 1
+    fi
     if [ -t 0 ]; then
         printf 'Enter your %s API key: ' "$name"
         IFS= read -rs KEY || true
@@ -652,8 +658,9 @@ save_key() {
         unset KEY
         exit 1
     fi
-    install_plugin "$package" "$needle"
-    printf '%s\n' "$KEY" | llm keys set "$name"
+    # --value skips llm's own "Enter key:" prompt. A pipe does not, because
+    # that prompt reads the terminal, not the pipe.
+    llm keys set "$name" --value "$KEY"
     unset KEY
     echo "Saved the $name key."
     exit 0

@@ -139,7 +139,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := execClio("sk-test\n", false, "key", "deepseek"); !strings.Contains(got, "Saved the deepseek key.") {
 		t.Fatalf("key printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "keys set deepseek") || strings.Contains(body, "install ") {
+	if body := wrote(); !strings.Contains(body, "keys set deepseek --value sk-test") || strings.Contains(body, "install ") {
 		t.Fatalf("key command: %q", body)
 	}
 	if _, err := os.Stat(probe); err != nil {

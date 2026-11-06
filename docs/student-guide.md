@@ -50,7 +50,7 @@ On Termux, run each wizard in the shell, after you type `exit`. Running one at `
 clio termux_setup
 ```
 
-Say yes to storage and the shell. When it asks **Build HTML pages?**, say yes. Pico CSS is saved at `~/.clio/share/pico.classless.min.css`. Say no to extra languages unless you want them. Plugins and the API key are next. If your shell switched to Zsh, open a new Termux session.
+Say yes to storage and the shell. When it asks **Build HTML pages?**, say yes. Pico CSS is saved at `~/.clio/share/pico.min.css`. Say no to extra languages unless you want them. Plugins and the API key are next. If your shell switched to Zsh, open a new Termux session.
 
 ## 4. Set up Neovim
 
@@ -107,14 +107,16 @@ git config --global user.name
 
 ## 6. Generate the site with Pico CSS
 
-[Pico CSS](https://picocss.com) classless 2.1.1 styles ordinary tags (`header`, `main`, `nav`, headings, links). The model writes HTML only.
+[Pico CSS](https://picocss.com) 2.1.1 supplies the navigation bar, the responsive grid, the article cards, and the footer color. The model writes HTML only. It must not add a `<style>` element.
+
+Photos go in `images/` before you generate. Name each file for what it shows, such as `images/hero.jpg`. Neovim passes those exact names into the prompt. The model does not download pictures.
 
 **Terminal, before Neovim**
 
 ```bash
-mkdir -p ~/my-site/css
+mkdir -p ~/my-site/css ~/my-site/images
 cd ~/my-site
-cp ~/.clio/share/pico.classless.min.css css/
+cp ~/.clio/share/pico.min.css css/
 nvim index.html
 ```
 
@@ -122,9 +124,9 @@ If that file is missing, download it once and copy it again:
 
 ```bash
 mkdir -p ~/.clio/share
-curl -fsSL -o ~/.clio/share/pico.classless.min.css \
-  https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.classless.min.css
-cp ~/.clio/share/pico.classless.min.css css/
+curl -fsSL -o ~/.clio/share/pico.min.css \
+  https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css
+cp ~/.clio/share/pico.min.css css/
 ```
 
 **Neovim:** press `,ga` and type the page. On an HTML file the editor adds the Pico rules to that prompt.
@@ -156,7 +158,7 @@ find . -type f | sort
 grep pico index.html
 ```
 
-You should see `css/pico.classless.min.css`, `index.html`, and `about.html`.
+You should see `css/pico.min.css`, `index.html`, and `about.html`.
 
 Preview on a computer by opening `index.html`. On a phone:
 
@@ -166,7 +168,7 @@ python3 -m http.server 8080
 
 If `python3` is missing: `pkg install -y python`, then run it again. Open `http://127.0.0.1:8080`. Press Ctrl-C when you are done.
 
-**If the page is empty:** fix the key in part 4 and run `,ga` again. **If there is no layout:** `ls -l css` should show a non-empty Pico file. Copy `~/.clio/share/pico.classless.min.css` again if it does not.
+**If the page is empty:** fix the key in part 4 and run `,ga` again. **If there is no layout:** `ls -l css` should show a non-empty Pico file. Copy `~/.clio/share/pico.min.css` again if it does not. A `<style>` block in the HTML is what makes the page look plain. Generate again after this Pico file is the one linked in the head.
 
 ## 7. Push to GitHub
 

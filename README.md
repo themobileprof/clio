@@ -205,7 +205,7 @@ $ clio termux_setup
 - **Zsh Shell**: Oh-My-Zsh with Powerlevel10k theme
 - **Dev Tools**: Git, GitHub CLI
 - **AI Assistant**: LLM tool with DeepSeek integration
-- **HTML pages**: asked during setup. A yes saves Pico CSS at `~/.clio/share/pico.classless.min.css`
+- **HTML pages**: asked during setup. A yes saves Pico CSS at `~/.clio/share/pico.min.css`
 - **Languages**: Optional installation of PHP, Node.js, Golang, Python
 
 The setup takes 10-20 minutes and only needs to be run once.

@@ -601,6 +601,33 @@ ask_model() {
     exit 1
 }
 
+on_termux() {
+    [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]
+}
+
+# Termux cannot compile jiter or pydantic-core. Use Android wheels and an
+# llm release that accepts those wheels. A newer llm asks pip to build them.
+termux_pip() {
+    python -m pip install --upgrade-strategy only-if-needed \
+        --only-binary=jiter,pydantic-core \
+        --extra-index-url https://pypi.flet.dev/ \
+        --extra-index-url https://eutalix.github.io/android-pydantic-core/ \
+        'jiter==0.15.0' 'pydantic-core==2.50.0' 'pydantic==2.14.0' \
+        'llm==0.32.1' "$@"
+}
+
+install_plugin() {
+    local package="$1" needle="$2"
+    if llm models 2>/dev/null | grep -q "$needle"; then
+        return 0
+    fi
+    if on_termux; then
+        termux_pip "$package"
+    else
+        llm install "$package"
+    fi
+}
+
 save_key() {
     local name="$1" package="$2" needle="$3" KEY status=0
     need_llm
@@ -625,9 +652,7 @@ save_key() {
         unset KEY
         exit 1
     fi
-    if ! llm models | grep -q "$needle"; then
-        llm install "$package"
-    fi
+    install_plugin "$package" "$needle"
     printf '%s\n' "$KEY" | llm keys set "$name"
     unset KEY
     echo "Saved the $name key."

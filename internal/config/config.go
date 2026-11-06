@@ -45,7 +45,7 @@ type Config struct {
 
 var defaultConfig = Config{
 	Profile:        ProfileAuto,
-	RegistryURL:    "https://clipilot.themobileprof.com",
+	RegistryURL:    "https://clio.themobileprof.com",
 	CacheTTL:       "24h",
 	SyncInterval:   "168h",
 	RemoteSearch:   RemoteAuto,

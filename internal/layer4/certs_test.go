@@ -18,8 +18,8 @@ func TestRegistryVerifiesWithISRGRootOnly(t *testing.T) {
 	if !pool.AppendCertsFromPEM([]byte(isrgRootX1)) {
 		t.Fatal("embedded ISRG Root X1 did not parse")
 	}
-	conn, err := tls.Dial("tcp", "clipilot.themobileprof.com:443", &tls.Config{
-		ServerName: "clipilot.themobileprof.com",
+	conn, err := tls.Dial("tcp", "clio.themobileprof.com:443", &tls.Config{
+		ServerName: "clio.themobileprof.com",
 		RootCAs:    pool,
 		MinVersion: tls.VersionTLS12,
 	})
@@ -30,8 +30,8 @@ func TestRegistryVerifiesWithISRGRootOnly(t *testing.T) {
 }
 
 func TestEmptyPoolRejectsRegistry(t *testing.T) {
-	_, err := tls.Dial("tcp", "clipilot.themobileprof.com:443", &tls.Config{
-		ServerName: "clipilot.themobileprof.com",
+	_, err := tls.Dial("tcp", "clio.themobileprof.com:443", &tls.Config{
+		ServerName: "clio.themobileprof.com",
 		RootCAs:    x509.NewCertPool(),
 		MinVersion: tls.VersionTLS12,
 	})

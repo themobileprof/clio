@@ -12,7 +12,7 @@ const maxResponseBytes = 4096
 
 // dnsFallback helps Termux when system DNS fails for the registry host.
 var dnsFallback = map[string]string{
-	"clipilot.themobileprof.com": "157.230.148.144",
+	"clio.themobileprof.com": "157.230.148.144",
 }
 
 // NewHTTPClient is the shared client for registry and GitHub calls.

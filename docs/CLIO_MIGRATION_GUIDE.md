@@ -22,7 +22,7 @@ This document provides comprehensive guidance for migrating Clio from a GitHub-b
 
 **Before:** Clio fetched modules directly from GitHub's CLIPilot repository using GitHub API.
 
-**After:** Clio fetches modules from CLIPilot's dedicated registry server at `clipilot.themobileprof.com`.
+**After:** Clio fetches modules from CLIPilot's dedicated registry server at `clio.themobileprof.com`.
 
 **Benefits:**
 - **Curated modules**: Registry validates and approves modules before listing
@@ -76,7 +76,7 @@ This document provides comprehensive guidance for migrating Clio from a GitHub-b
          ↓
 ┌──────────────────────┐
 │  CLIPilot Server     │
-│  clipilot.themobileprof.com │
+│  clio.themobileprof.com │
 │  - Module Registry   │
 │  - Web UI            │
 │  - Install Script    │
@@ -91,7 +91,7 @@ This document provides comprehensive guidance for migrating Clio from a GitHub-b
 
 **Location:** `/home/samuel/sites/clio/install.sh`
 
-**Reason:** CLIPilot server now hosts the install script at `clipilot.themobileprof.com/clio`. Clio's CI/CD uploads it there.
+**Reason:** CLIPilot server now hosts the install script at `clio.themobileprof.com/clio`. Clio's CI/CD uploads it there.
 
 **Action:**
 ```bash
@@ -102,7 +102,7 @@ git commit -m "Remove install.sh - now hosted by CLIPilot server"
 
 **Update README.md installation instructions to:**
 ```bash
-curl -fsSL clipilot.themobileprof.com/clio | sh
+curl -fsSL clio.themobileprof.com/clio | sh
 ```
 
 ---
@@ -174,7 +174,7 @@ import (
 
 const (
 	// Registry API base URL (configurable via config)
-	DefaultRegistryURL = "https://clipilot.themobileprof.com"
+	DefaultRegistryURL = "https://clio.themobileprof.com"
 )
 
 type RegistryModule struct {
@@ -417,7 +417,7 @@ func SaveLastSyncTimestamp(t time.Time) error {
 3. Script installs binary
 
 ###New Flow
-1. User runs: `curl -fsSL clipilot.themobileprof.com/clio | sh`
+1. User runs: `curl -fsSL clio.themobileprof.com/clio | sh`
 2. CLIPilot server returns `install.sh` (uploaded by Clio's CI/CD)
 3. Script downloads `clio` binary from Clio's GitHub releases (unchanged)
 4. Script installs binary
@@ -454,7 +454,7 @@ jobs:
       
       - name: Upload install script to CLIPilot server
         run: |
-          curl -X POST https://clipilot.themobileprof.com/api/install-script/upload \
+          curl -X POST https://clio.themobileprof.com/api/install-script/upload \
             -H "Authorization: Bearer ${{ secrets.CLIPILOT_API_KEY }}" \
             -F "file=@install.sh" \
             -F "version=${{ github.ref_name }}"
@@ -474,7 +474,7 @@ Clio should support a configuration file for registry URL:
 
 ```yaml
 # ~/.clio/config.yaml
-registry_url: https://clipilot.themobileprof.com
+registry_url: https://clio.themobileprof.com
 cache_ttl: 24h # How long to cache module list
 sync_interval: 168h # Auto-sync every 7 days (optional)
 ```
@@ -500,7 +500,7 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	RegistryURL:    "https://clipilot.themobileprof.com",
+	RegistryURL:    "https://clio.themobileprof.com",
 	CacheTTL:       "24h",
 	SyncInterval:   "168h",
 }
@@ -543,12 +543,12 @@ func Load() (Config, error) {
 - [ ] **Delta Sync**: Run sync twice - second run should be faster (only changed modules)
 - [ ] **ETag Caching**: Check that unchanged modules return HTTP 304
 - [ ] **Offline Mode**: Disconnect network, run `clio` - verify cached modules execute
-- [ ] **Install Script**: Test `curl -fsSL clipilot.themobileprof.com/clio | sh` (when deployed)
+- [ ] **Install Script**: Test `curl -fsSL clio.themobileprof.com/clio | sh` (when deployed)
 - [ ] **First Run**: Delete `~/.clio/`, run `clio` - verify initializes properly
 
 ### Integration Testing
 
-- [ ] **API Connectivity**: Verify Clio can reach `clipilot.themobileprof.com`
+- [ ] **API Connectivity**: Verify Clio can reach `clio.themobileprof.com`
 - [ ] **Module Download**: Test `/api/v1/modules/:id/download` endpoint
 - [ ] **Changed Endpoint**: Test `/api/v1/modules/changed?since=<timestamp>`
 - [ ] **Error Handling**: What happens if registry is down? (Should use cached modules)
@@ -652,16 +652,16 @@ See `docs/CLIO_API_REQUIREMENTS.md` in CLIPilot repo for full endpoint specs.
 **Testing the Registry:**
 ```bash
 # List modules
-curl https://clipilot.themobileprof.com/api/v1/modules?limit=5
+curl https://clio.themobileprof.com/api/v1/modules?limit=5
 
 # Get module metadata
-curl https://clipilot.themobileprof.com/api/v1/modules/copy_file
+curl https://clio.themobileprof.com/api/v1/modules/copy_file
 
 # Download module
-curl https://clipilot.themobileprof.com/api/v1/modules/copy_file/download
+curl https://clio.themobileprof.com/api/v1/modules/copy_file/download
 
 # Check changed modules
-curl "https://clipilot.themobileprof.com/api/v1/modules/changed?since=2026-01-01T00:00:00Z"
+curl "https://clio.themobileprof.com/api/v1/modules/changed?since=2026-01-01T00:00:00Z"
 ```
 
 **Contact:** Open an issue in either CLIPilot or Clio repos for migration support.

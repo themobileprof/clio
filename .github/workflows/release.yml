@@ -92,7 +92,7 @@ jobs:
           echo "Version: ${{ github.ref_name }}"
           
           RESPONSE=$(curl -w "\nHTTP_CODE:%{http_code}" -X POST \
-            https://clipilot.themobileprof.com/api/install-script/upload \
+            https://clio.themobileprof.com/api/install-script/upload \
             -H "Authorization: Bearer $API_KEY" \
             -F "file=@install.sh" \
             -F "version=${{ github.ref_name }}")

@@ -16,7 +16,7 @@ GET {download_url} // For each YAML file
 **Remote Search (Already Exists on CLIPilot):**
 ```go
 // Current: internal/layer4/client.go
-POST https://clipilot.themobileprof.com/api/commands/search
+POST https://clio.themobileprof.com/api/commands/search
 Request: {"query": "...", "os": "linux", "arch": "arm64"}
 Response: {"results": [{"name": "...", "description": "...", "usage": "..."}]}
 ```
@@ -412,7 +412,7 @@ func Sync() error {
 ### Phase 2: Default to Registry
 ```go
 // Add config: ~/.clio/config.yaml
-registry_url: https://clipilot.themobileprof.com
+registry_url: https://clio.themobileprof.com
 fallback_to_github: true
 ```
 

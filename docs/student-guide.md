@@ -11,7 +11,7 @@ On a phone, install Termux from [F-Droid](https://f-droid.org/en/packages/com.te
 **Terminal**
 
 ```bash
-curl -fsSL https://clipilot.themobileprof.com/clio | sh
+curl -fsSL https://clio.themobileprof.com/clio | sh
 ```
 
 If that fails:

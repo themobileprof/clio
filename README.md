@@ -38,7 +38,7 @@ You can install the latest binary automatically using curl. This script detects 
 
 **Primary method (recommended):**
 ```bash
-curl -fsSL https://clipilot.themobileprof.com/clio | sh
+curl -fsSL https://clio.themobileprof.com/clio | sh
 ```
 
 **Fallback method (if registry is unavailable):**
@@ -243,7 +243,7 @@ Clio can be configured via `~/.clio/config.yaml`:
 
 ```yaml
 # Registry URL for module sync
-registry_url: https://clipilot.themobileprof.com
+registry_url: https://clio.themobileprof.com
 
 # How long to cache module list (default: 24h)
 cache_ttl: 24h

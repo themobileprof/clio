@@ -613,9 +613,16 @@ ask_model() {
                 ;;
             gemini) model=gemini-3.8-flash ;;
         esac
-        if llm -m "$model" "$@"; then
-            exit 0
-        fi
+        # A phone screen. Neovim's ,ga and ,gr are separate and stay long.
+        short="Reply briefly for a phone. At most four short sentences, or one command and one line of explanation."
+        case "$PROVIDER" in
+            deepseek)
+                llm -m "$model" -s "$short" -o max_tokens 220 -R -- "$@"
+                ;;
+            gemini)
+                llm -m "$model" -s "$short" -o max_output_tokens 220 -o thinking_level low -R -- "$@"
+                ;;
+        esac && exit 0
         why="The model did not answer. Offline answer:"
     fi
     if offline_answer "$why" "$@"; then

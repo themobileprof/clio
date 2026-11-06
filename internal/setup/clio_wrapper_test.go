@@ -104,7 +104,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := run("ask", "extract tar file"); got != "" {
 		t.Fatalf("online ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek-flash extract tar file") {
+	if body := wrote(); !strings.Contains(body, "-m deepseek-flash") || !strings.Contains(body, "max_tokens 220") || !strings.Contains(body, "extract tar file") {
 		t.Fatalf("online question did not reach the model: %q", body)
 	}
 	if _, err := os.Stat(probe); !os.IsNotExist(err) {
@@ -114,7 +114,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := run("ask", "your question"); got != "" {
 		t.Fatalf("ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek-flash your question") {
+	if body := wrote(); !strings.Contains(body, "-m deepseek-flash") || !strings.Contains(body, "max_tokens 220") || !strings.Contains(body, "your question") {
 		t.Fatalf("default model args: %q", body)
 	}
 
@@ -124,7 +124,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if got := run("ask", "your question"); got != "" {
 		t.Fatalf("gemini ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash your question") {
+	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash") || !strings.Contains(body, "max_output_tokens 220") || !strings.Contains(body, "thinking_level low") || !strings.Contains(body, "your question") {
 		t.Fatalf("gemini model args: %q", body)
 	}
 
@@ -135,7 +135,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	run("ask", "your question")
-	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash your question") {
+	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash") || !strings.Contains(body, "max_output_tokens 220") || !strings.Contains(body, "your question") {
 		t.Fatalf("available gemini args: %q", body)
 	}
 
@@ -192,7 +192,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if !strings.Contains(got, "The model did not answer. Offline answer:") || !strings.Contains(got, "Use: tar -xzvf") {
 		t.Fatalf("failed model fallback: %q", got)
 	}
-	if !strings.Contains(wrote(), "-m deepseek-flash extract tar file") {
+	if !strings.Contains(wrote(), "-m deepseek-flash") || !strings.Contains(wrote(), "extract tar file") {
 		t.Fatal("failed model was not tried")
 	}
 }

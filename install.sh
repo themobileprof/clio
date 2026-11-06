@@ -487,11 +487,18 @@ need_llm() {
     fi
 }
 
+key_file() {
+    printf '%s\n' "${LLM_USER_PATH:-$HOME/.config/io.datasette.llm}/keys.json"
+}
+
 has_key() {
-    # Read the whole list first. grep -q would close the pipe at the first
-    # match, llm would die with a broken pipe, and a saved DeepSeek key
-    # would be treated as missing whenever a Gemini key was saved too.
-    local names
+    local file names
+    file=$(key_file)
+    # The key file is enough. Starting llm just to list names costs a
+    # Python startup on the phone before the question is even sent.
+    if [ -f "$file" ] && grep -q "\"$1\"" "$file"; then
+        return 0
+    fi
     names=$(llm keys 2>/dev/null || true)
     case "
 $names
@@ -599,13 +606,102 @@ ensure_deepseek_model() {
     printf '\n- model_id: deepseek-flash\n  model_name: deepseek-flash\n  api_base: https://api.deepseek.com\n  api_key_name: deepseek\n' >> "$file"
 }
 
+# One short Python process, streaming. DeepSeek's thinking mode is off,
+# so the first word is not held back. llm is only the fallback.
+ask_fast() {
+    local py system
+    system="$1"
+    shift
+    py=$(command -v python || command -v python3 || true)
+    [ -n "$py" ] || return 1
+    printf '%s' "$*" | "$py" -c '
+import json, os, sys
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+provider, system = sys.argv[1], sys.argv[2]
+question = sys.stdin.read()
+base = os.environ.get("LLM_USER_PATH") or os.path.expanduser("~/.config/io.datasette.llm")
+try:
+    keys = json.load(open(os.path.join(base, "keys.json")))
+except Exception:
+    sys.exit(1)
+key = str(keys.get(provider) or "").strip()
+if not key:
+    sys.exit(1)
+if provider == "deepseek":
+    url = "https://api.deepseek.com/chat/completions"
+    payload = {
+        "model": "deepseek-flash",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": question},
+        ],
+        "max_tokens": 220,
+        "stream": True,
+        "thinking": {"type": "disabled"},
+    }
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
+else:
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse"
+    payload = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": question}]}],
+        "generationConfig": {
+            "maxOutputTokens": 220,
+            "thinkingConfig": {"thinkingLevel": "low", "includeThoughts": False},
+        },
+    }
+    headers = {"x-goog-api-key": key, "Content-Type": "application/json"}
+req = Request(url, data=json.dumps(payload).encode(), headers=headers)
+try:
+    resp = urlopen(req, timeout=45)
+except (HTTPError, URLError):
+    sys.exit(1)
+wrote = False
+for raw in resp:
+    line = raw.decode("utf-8", "replace").strip()
+    if not line.startswith("data:"):
+        continue
+    data = line[5:].strip()
+    if not data or data == "[DONE]":
+        continue
+    try:
+        obj = json.loads(data)
+    except Exception:
+        continue
+    text = ""
+    choices = obj.get("choices") or []
+    if choices:
+        delta = (choices[0] or {}).get("delta") or {}
+        text = delta.get("content") or ""
+    if not text:
+        cands = obj.get("candidates") or []
+        if cands:
+            parts = ((cands[0] or {}).get("content") or {}).get("parts") or []
+            for part in parts:
+                if part.get("thought"):
+                    continue
+                text += part.get("text") or ""
+    if text:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        wrote = True
+sys.exit(0 if wrote else 1)
+' "$PROVIDER" "$system"
+}
+
 ask_model() {
-    local model why=""
+    local model why="" short
     if [ "$#" -eq 0 ]; then
         echo "Usage: clio ask 'your question'"
         exit 1
     fi
-    if command -v llm >/dev/null 2>&1 && pick_provider; then
+    # A phone screen. Neovim's ,ga and ,gr are separate and stay long.
+    short="Reply briefly for a phone. At most four short sentences, or one command and one line of explanation."
+    if pick_provider && ask_fast "$short" "$@"; then
+        exit 0
+    fi
+    if [ -n "${PROVIDER:-}" ] && command -v llm >/dev/null 2>&1; then
         case "$PROVIDER" in
             deepseek)
                 ensure_deepseek_model
@@ -613,8 +709,6 @@ ask_model() {
                 ;;
             gemini) model=gemini-3.8-flash ;;
         esac
-        # A phone screen. Neovim's ,ga and ,gr are separate and stay long.
-        short="Reply briefly for a phone. At most four short sentences, or one command and one line of explanation."
         case "$PROVIDER" in
             deepseek)
                 llm -m "$model" -s "$short" -o max_tokens 220 -R -- "$@"

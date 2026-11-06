@@ -51,7 +51,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 		"    printf '%s\\n' deepseek-chat deepseek-flash gemini-3.8-flash\n" +
 		"    ;;\n" +
 		"esac\n"
-	if err := os.WriteFile(filepath.Join(dir, "python"), []byte("#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$HOME/python-args\"\ncat >/dev/null\nif [ -f \"$HOME/key-status\" ]; then exit \"$(cat \"$HOME/key-status\")\"; fi\nexit 0\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "python"), []byte("#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$HOME/python-args\"\ncat >/dev/null\nif [ -f \"$HOME/key-status\" ]; then exit \"$(cat \"$HOME/key-status\")\"; fi\nif printf '%s' \"$*\" | grep -q thinking; then\n  if [ -f \"$HOME/llm-fail\" ]; then exit 1; fi\n  printf '%s' FAST\n  exit 0\nfi\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "llm"), []byte(llm), 0o755); err != nil {
@@ -101,31 +101,41 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if err := os.WriteFile(keys, []byte("deepseek\ngemini\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := run("ask", "extract tar file"); got != "" {
+	keyDir := filepath.Join(home, ".config", "io.datasette.llm")
+	if err := os.MkdirAll(keyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(keyDir, "keys.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeJSON("{\"deepseek\":\"x\",\"gemini\":\"y\"}\n")
+	if got := run("ask", "extract tar file"); got != "FAST" {
 		t.Fatalf("online ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek-flash") || !strings.Contains(body, "max_tokens 220") || !strings.Contains(body, "extract tar file") {
-		t.Fatalf("online question did not reach the model: %q", body)
+	if _, err := os.Stat(record); !os.IsNotExist(err) {
+		t.Fatal("ask started the model program before the question")
 	}
-	if _, err := os.Stat(probe); !os.IsNotExist(err) {
-		t.Fatal("asking checked the key again")
+	probeBody, err := os.ReadFile(probe)
+	if err != nil || !strings.Contains(string(probeBody), "\"thinking\"") || strings.Contains(string(probeBody), "api.deepseek.com/models") {
+		t.Fatalf("ask call: %q %v", probeBody, err)
 	}
 
-	if got := run("ask", "your question"); got != "" {
+	if got := run("ask", "your question"); got != "FAST" {
 		t.Fatalf("ask printed %q", got)
-	}
-	if body := wrote(); !strings.Contains(body, "-m deepseek-flash") || !strings.Contains(body, "max_tokens 220") || !strings.Contains(body, "your question") {
-		t.Fatalf("default model args: %q", body)
 	}
 
 	if got := run("model", "gemini"); !strings.Contains(got, "Clio will ask gemini.") {
 		t.Fatalf("model gemini: %q", got)
 	}
-	if got := run("ask", "your question"); got != "" {
+	if got := run("ask", "your question"); got != "FAST" {
 		t.Fatalf("gemini ask printed %q", got)
 	}
-	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash") || !strings.Contains(body, "max_output_tokens 220") || !strings.Contains(body, "thinking_level low") || !strings.Contains(body, "your question") {
-		t.Fatalf("gemini model args: %q", body)
+	probeBody, err = os.ReadFile(probe)
+	if err != nil || !strings.Contains(string(probeBody), "gemini-3.8-flash") || !strings.Contains(string(probeBody), "thinkingLevel") {
+		t.Fatalf("gemini ask call: %q %v", probeBody, err)
 	}
 
 	if err := os.Remove(filepath.Join(home, ".config", "clio", "model")); err != nil {
@@ -134,9 +144,13 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if err := os.WriteFile(keys, []byte("gemini\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	run("ask", "your question")
-	if body := wrote(); !strings.Contains(body, "-m gemini-3.8-flash") || !strings.Contains(body, "max_output_tokens 220") || !strings.Contains(body, "your question") {
-		t.Fatalf("available gemini args: %q", body)
+	writeJSON("{\"gemini\":\"y\"}\n")
+	if got := run("ask", "your question"); got != "FAST" {
+		t.Fatalf("available gemini ask printed %q", got)
+	}
+	probeBody, err = os.ReadFile(probe)
+	if err != nil || !strings.Contains(string(probeBody), "gemini-3.8-flash") {
+		t.Fatalf("available gemini call: %q %v", probeBody, err)
 	}
 
 	if got := execClio("sk-test\n", false, "key", "deepseek"); !strings.Contains(got, "Saved the deepseek key.") {
@@ -189,6 +203,7 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if err := os.WriteFile(keys, []byte("deepseek\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeJSON("{\"deepseek\":\"x\"}\n")
 	if err := os.WriteFile(filepath.Join(home, "llm-fail"), []byte("1"), 0o644); err != nil {
 		t.Fatal(err)
 	}

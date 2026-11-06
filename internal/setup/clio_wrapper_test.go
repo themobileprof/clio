@@ -145,6 +145,10 @@ func TestClioAskWrapsTheModelTool(t *testing.T) {
 	if body := wrote(); !strings.Contains(body, "keys set deepseek --value sk-test") || strings.Contains(body, "install ") {
 		t.Fatalf("key command: %q", body)
 	}
+	neovimKey, err := os.ReadFile(filepath.Join(home, ".config", "gp", "deepseek.key"))
+	if err != nil || string(neovimKey) != "sk-test" {
+		t.Fatalf("neovim key file: %q %v", neovimKey, err)
+	}
 	if _, err := os.Stat(probe); err != nil {
 		t.Fatal("saving a key did not check it")
 	}

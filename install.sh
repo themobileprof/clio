@@ -698,6 +698,13 @@ save_key() {
     # --value skips llm's own "Enter key:" prompt. A pipe does not, because
     # that prompt reads the terminal, not the pipe.
     llm keys set "$name" --value "$KEY"
+    # Neovim reads this file. It is a different store from the one clio ask uses.
+    if [ "$name" = "deepseek" ]; then
+        mkdir -p "$HOME/.config/gp"
+        umask 077
+        printf '%s' "$KEY" > "$HOME/.config/gp/deepseek.key"
+        chmod 600 "$HOME/.config/gp/deepseek.key"
+    fi
     unset KEY
     echo "Saved the $name key."
     exit 0

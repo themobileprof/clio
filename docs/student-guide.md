@@ -4,7 +4,7 @@ Do these parts in order. Commands under **Terminal** run in the shell. Commands 
 
 You need a phone with Termux or a Linux computer, a [GitHub](https://github.com) account, a [DeepSeek API key](https://platform.deepseek.com/api_keys), and later a server login (hostname, username, and a key or password). Git, GitHub, and SSH are shell commands.
 
-On a phone, install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/) or the [Termux releases](https://github.com/termux/termux-app/releases). The Google Play copy is too old. You should see a `$` prompt. On a computer, open the terminal.
+On a phone, open [clio.themobileprof.com/termux](https://clio.themobileprof.com/termux) and tap Download Termux. That page gives you the GitHub file for this phone. Android shows a warning. Open the details and tap Install anyway. The Play Store copy cannot run a program you download. You should see a `$` prompt. On a computer, open the terminal.
 
 ## 1. Install Clio
 

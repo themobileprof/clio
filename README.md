@@ -34,7 +34,7 @@ Students: follow [docs/student-guide.md](docs/student-guide.md) from a blank pho
 ## Installation
 
 ### Automatic Install (Recommended)
-You can install the latest binary automatically using curl. This script detects your OS and CPU, including Termux, and downloads a prebuilt binary. On a phone it tries the Android 10 build first. If that phone's loader rejects it, as Android 16 does, it downloads the other prebuilt binary. Nothing is compiled on the phone.
+You can install the latest binary automatically using curl. This script detects your OS/Arch (including Termux) and downloads the correct binary.
 
 ```bash
 curl -fsSL https://clio.themobileprof.com/clio | sh
@@ -60,9 +60,11 @@ cp clio $PREFIX/bin/
 
 **Cross-compile for Termux (from Linux/Mac):**
 ```bash
-# Android 10 can run a normal linux executable. Android 16 cannot:
-# its loader rejects ELF type 2 ("has unexpected e_type: 2").
-./scripts/build-termux-binary.sh clio-android-arm64
+# 64-bit phones (most current devices)
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
+
+# 32-bit ARM phones (older devices — must use arm, not arm64)
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -o clio-arm ./cmd/clio
 ```
 
 **Test in Termux Docker (before deploying to phones):**

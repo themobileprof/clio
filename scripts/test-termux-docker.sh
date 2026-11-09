@@ -25,8 +25,6 @@ case "$PLATFORM" in
     ;;
 esac
 
-# These containers are a Linux userland, not Android's linker64. Phones need
-# the GOOS=android binary from release.sh; this script checks the linux build.
 echo "=== Building clio for ${GOARCH} ==="
 cd "$CLIO_REPO"
 if [ -n "$GOARM" ]; then

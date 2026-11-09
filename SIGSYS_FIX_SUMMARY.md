@@ -105,8 +105,8 @@ cmd.SysProcAttr.Cloneflags = 0  // Forces clone() instead of clone3()
 ### Build Configuration
 
 ```bash
-# Android 10 accepts a normal executable. Android 16 rejects e_type 2.
-./scripts/build-termux-binary.sh clio-android-arm64
+# Correct way to build for Termux
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./cmd/clio
 
 # Or use the provided script
 ./build-termux.sh
@@ -135,8 +135,8 @@ cmd.SysProcAttr.Cloneflags = 0  // Forces clone() instead of clone3()
 ### Cross-Compilation
 
 ```bash
-# From Linux/Mac, build for ARM64 Termux (Android 10 and Android 16)
-./scripts/build-termux-binary.sh clio-android-arm64
+# From Linux/Mac, build for ARM64 Termux
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o clio-arm64 ./cmd/clio
 
 # Transfer to device
 adb push clio-arm64 /data/data/com.termux/files/usr/bin/clio

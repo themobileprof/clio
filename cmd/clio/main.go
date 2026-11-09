@@ -15,7 +15,6 @@ import (
 )
 
 func main() {
-	os.Args = stripTermuxLinkerArg(os.Args)
 	applyMemoryProfile()
 
 	if len(os.Args) >= 3 && os.Args[1] == "--print-module" {

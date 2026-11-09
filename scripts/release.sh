@@ -33,15 +33,11 @@ build linux 386
 build darwin amd64
 build darwin arm64
 
-echo "Building clio-android-arm64..."
-./scripts/build-termux-binary.sh "$OUT/clio-android-arm64"
-
 gh release create "$TAG" --target main --title "$TAG" --notes "${NOTES:-$TAG}" \
   "$OUT/clio-linux-amd64" \
   "$OUT/clio-linux-arm64" \
   "$OUT/clio-linux-arm" \
   "$OUT/clio-linux-386" \
-  "$OUT/clio-android-arm64" \
   "$OUT/clio-darwin-amd64" \
   "$OUT/clio-darwin-arm64"
 

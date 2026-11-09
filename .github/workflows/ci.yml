@@ -30,5 +30,3 @@ jobs:
         go build -ldflags="-s -w" -v ./cmd/clio
         CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -o clio-linux-arm ./cmd/clio
         file clio-linux-arm | grep -q 'ARM, EABI5'
-        # Android 10 runs a static executable. Android 16 rejects it (e_type 2).
-        ./scripts/build-termux-binary.sh clio-android-arm64

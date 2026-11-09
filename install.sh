@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VERSION=0.0.28
+VERSION=0.0.29
 
 # Repo information
 OWNER="themobileprof"
@@ -126,30 +126,40 @@ download_asset() {
     chmod +x "$dest"
 }
 
+try_asset() {
+    local asset="$1"
+    local dest="$2"
+    local check_loader="$3"
+    rm -f "$dest"
+    if ! download_asset "$asset" "$dest"; then
+        return 1
+    fi
+    if [ "$check_loader" = "yes" ] && loader_rejected "$dest"; then
+        echo "This phone refused to start $asset."
+        rm -f "$dest"
+        return 1
+    fi
+    echo "Using $asset"
+    return 0
+}
+
 install_downloaded_binary() {
     local dest="$1"
-    local -a candidates
+    # Piped to sh on purpose (curl ... | sh). Do not use bash arrays here.
     if [ "$ARCH" = "arm64" ] && [ "$(uname -o 2>/dev/null || true)" = "Android" ]; then
-        candidates=(clio-linux-arm64 clio-android-arm64)
-    else
-        candidates=("${BIN_NAME}-${OS}-${ARCH}")
+        if try_asset clio-linux-arm64 "$dest" yes; then
+            return 0
+        fi
+        if try_asset clio-android-arm64 "$dest" yes; then
+            return 0
+        fi
+        echo "Error: No Clio download would start on this phone."
+        exit 1
     fi
-
-    local asset
-    for asset in "${candidates[@]}"; do
-        rm -f "$dest"
-        if ! download_asset "$asset" "$dest"; then
-            continue
-        fi
-        if [ "${#candidates[@]}" -gt 1 ] && loader_rejected "$dest"; then
-            echo "This phone refused to start $asset."
-            rm -f "$dest"
-            continue
-        fi
-        echo "Using $asset"
+    if try_asset "${BIN_NAME}-${OS}-${ARCH}" "$dest" no; then
         return 0
-    done
-    echo "Error: No Clio download would start on this phone."
+    fi
+    echo "Error: Failed to download binary. Check if the release/asset exists."
     exit 1
 }
 # phone-loader:end

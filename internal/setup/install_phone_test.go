@@ -21,8 +21,12 @@ func TestInstallerKeepsWhicheverPhoneBinaryStarts(t *testing.T) {
 	if i < 0 || j < i {
 		t.Fatal("phone loader block missing from install.sh")
 	}
-	linux := strings.Index(body, "candidates=(clio-linux-arm64 clio-android-arm64)")
-	if linux < 0 {
+	if strings.Contains(body[i:j], "candidates=(") || strings.Contains(body[i:j], "local -a") {
+		t.Fatal("phone installer is piped to sh, which rejects bash arrays")
+	}
+	linux := strings.Index(body, "try_asset clio-linux-arm64")
+	android := strings.Index(body, "try_asset clio-android-arm64")
+	if linux < 0 || android < linux {
 		t.Fatal("Android arm64 must try the Android 10 binary, then the Android 16 binary")
 	}
 
@@ -35,7 +39,7 @@ func TestInstallerKeepsWhicheverPhoneBinaryStarts(t *testing.T) {
 	script := body[i+len(start):j] + "\n" +
 		"if loader_rejected " + shellQuote(rejected) + "; then echo rejected; else echo accepted-rejected; fi\n" +
 		"if loader_rejected " + shellQuote(accepted) + "; then echo rejected-accepted; else echo accepted; fi\n"
-	cmd := exec.Command("bash", "-s")
+	cmd := exec.Command("sh", "-s")
 	cmd.Stdin = strings.NewReader(script)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

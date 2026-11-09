@@ -14,12 +14,6 @@ On a phone, install Termux from [F-Droid](https://f-droid.org/en/packages/com.te
 curl -fsSL https://clio.themobileprof.com/clio | sh
 ```
 
-If that fails:
-
-```bash
-curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
-```
-
 Close the terminal and open it again. If `clio` is still missing on a computer:
 
 ```bash

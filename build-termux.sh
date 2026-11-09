@@ -26,16 +26,17 @@ echo "      (Installed automatically by install.sh alongside the binary)"
 echo "      This avoids Android seccomp syscall restrictions (pidfd_open)"
 echo ""
 
-# Build with Android compatibility
-export CGO_ENABLED=0
-export GOOS=linux
-export GOARCH="$GOARCH"
-
-# Build
-go build -v \
-    -ldflags="-s -w" \
-    -o clio \
-    ./cmd/clio
+# Android 16 loads every binary with /system/bin/linker64 and rejects a normal
+# executable (e_type 2). Android 10 still runs that executable directly.
+# scripts/build-termux-binary.sh produces one PIE that both can start.
+if [ "$GOARCH" = "arm64" ]; then
+    ./scripts/build-termux-binary.sh "$(pwd)/clio"
+else
+    echo "Warning: Android 16 needs the arm64 Termux build."
+    echo "         This host would produce an ordinary executable (e_type 2)."
+    CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
+        go build -v -ldflags="-s -w" -o clio ./cmd/clio
+fi
 
 # Verify it built
 if [ ! -f "clio" ]; then

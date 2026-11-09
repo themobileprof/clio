@@ -40,7 +40,7 @@ Clio shows: tar -xzvf
 **For Linux/Mac users:**
 ```bash
 # Show the one-liner
-curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+curl -fsSL https://clio.themobileprof.com/clio | sh
 
 # Explain what happens:
 # 1. Detects your OS (Linux/Mac) and CPU architecture (Intel/ARM)
@@ -68,7 +68,7 @@ clio --version
 **For Termux (Android) users:**
 ```bash
 # Same command works!
-curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+curl -fsSL https://clio.themobileprof.com/clio | sh
 
 # The script auto-detects Termux and installs to $PREFIX/bin
 ```

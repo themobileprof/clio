@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+VERSION=0.0.28
+
 # Repo information
 OWNER="themobileprof"
 REPO="clio"
@@ -79,40 +81,80 @@ if ! command -v man >/dev/null 2>&1; then
     install_man
 fi
 
-# Simple grep to find the regular download url for the right binary
-# Asset name format: clio-{os}-{arch} (from release.yml)
-ASSET_NAME="${BIN_NAME}-${OS}-${ARCH}"
+# phone-loader:start
+# Android 10 execs the ordinary linux binary. Android 16's linker rejects
+# that file ("has unexpected e_type: 2") and needs the position-independent one.
+# Both are release downloads. The phone does not compile anything.
+loader_rejected() {
+    local bin="$1"
+    local out
+    if command -v timeout >/dev/null 2>&1; then
+        out=$(timeout 20 "$bin" --print-module __clio_install_probe__ </dev/null 2>&1 || true)
+    else
+        out=$("$bin" --print-module __clio_install_probe__ </dev/null 2>&1 || true)
+    fi
+    printf '%s\n' "$out" | grep -q -e 'unexpected e_type' -e 'CANNOT LINK EXECUTABLE' -e 'Exec format error'
+}
 
-# Construct download URL (assuming public repo)
-DOWNLOAD_URL="https://github.com/$OWNER/$REPO/releases/latest/download/$ASSET_NAME"
+download_asset() {
+    local asset="$1"
+    local dest="$2"
+    local url="https://github.com/$OWNER/$REPO/releases/latest/download/$asset"
+    echo "Downloading $url..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsL -o "$dest" "$url" || { rm -f "$dest"; return 1; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$dest" "$url" || { rm -f "$dest"; return 1; }
+    else
+        echo "Error: Neither curl nor wget found."
+        exit 1
+    fi
+    if [ ! -s "$dest" ]; then
+        echo "Error: Failed to download $asset."
+        rm -f "$dest"
+        return 1
+    fi
+    # Go binaries are usually > 1MB. "Not Found" is a few bytes.
+    local file_size
+    file_size=$(wc -c < "$dest" | tr -d '[:space:]')
+    if [ "$file_size" -lt 102400 ]; then
+        echo "Error: $asset is too small ($file_size bytes). The release may not include it yet."
+        cat "$dest"
+        rm -f "$dest"
+        return 1
+    fi
+    chmod +x "$dest"
+}
 
-echo "Downloading $DOWNLOAD_URL..."
-if command -v curl >/dev/null 2>&1; then
-    curl -fsL -o "$BIN_NAME" "$DOWNLOAD_URL"
-elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$BIN_NAME" "$DOWNLOAD_URL"
-else
-    echo "Error: Neither curl nor wget found."
+install_downloaded_binary() {
+    local dest="$1"
+    local -a candidates
+    if [ "$ARCH" = "arm64" ] && [ "$(uname -o 2>/dev/null || true)" = "Android" ]; then
+        candidates=(clio-linux-arm64 clio-android-arm64)
+    else
+        candidates=("${BIN_NAME}-${OS}-${ARCH}")
+    fi
+
+    local asset
+    for asset in "${candidates[@]}"; do
+        rm -f "$dest"
+        if ! download_asset "$asset" "$dest"; then
+            continue
+        fi
+        if [ "${#candidates[@]}" -gt 1 ] && loader_rejected "$dest"; then
+            echo "This phone refused to start $asset."
+            rm -f "$dest"
+            continue
+        fi
+        echo "Using $asset"
+        return 0
+    done
+    echo "Error: No Clio download would start on this phone."
     exit 1
-fi
+}
+# phone-loader:end
 
-if [ ! -f "$BIN_NAME" ] || [ ! -s "$BIN_NAME" ]; then
-    echo "Error: Failed to download binary. Check if the release/asset exists."
-    exit 1
-fi
-
-# Verify it's not a text file (simple heuristic: check size)
-# Go binaries are usually > 1MB. Let's be conservative and say > 100KB (102400 bytes).
-# "Not Found" is 9 bytes.
-FILE_SIZE=$(wc -c < "$BIN_NAME" | tr -d '[:space:]')
-if [ "$FILE_SIZE" -lt 102400 ]; then
-    echo "Error: Downloaded file is too small ($FILE_SIZE bytes). Likely an error message or invalid binary."
-    cat "$BIN_NAME" # Print content to help debug
-    rm "$BIN_NAME"
-    exit 1
-fi
-
-chmod +x "$BIN_NAME"
+install_downloaded_binary "$BIN_NAME"
 mv "$BIN_NAME" "$INSTALL_DIR/clio.bin"
 
 # Create .clio directory structure

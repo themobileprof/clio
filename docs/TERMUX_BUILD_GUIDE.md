@@ -80,7 +80,7 @@ User runs: clio-run-module termux_setup setup
 ### Option 1: Use Pre-Built Binaries (Recommended)
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+curl -fsSL https://clio.themobileprof.com/clio | sh
 ```
 
 ### Option 2: Build on Termux
@@ -106,26 +106,21 @@ cp clio $PREFIX/bin/
 
 ### Option 3: Cross-Compile from Linux/Mac
 
-**For ARM64 (most Termux devices):**
+**For ARM64 phones (Android 10 and Android 16):**
 ```bash
-GOTOOLCHAIN=go1.23.8 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-  go build -ldflags="-s -w" -o clio-arm64 ./cmd/clio
+./scripts/build-termux-binary.sh clio-android-arm64
 ```
 
-**For ARM (32-bit devices):**
-```bash
-GOTOOLCHAIN=go1.23.8 CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
-  go build -ldflags="-s -w" -o clio-arm ./cmd/clio
-```
+Android 10 runs a normal executable directly. Android 16 sends it through `/system/bin/linker64`, which reports `has unexpected e_type: 2` for that file. The script builds a position-independent Linux binary whose interpreter is `linker64`. A `GOOS=android` build without cgo hangs before `main`.
 
 **Transfer to device:**
 ```bash
 # Via adb
-adb push clio-arm64 /data/data/com.termux/files/usr/bin/clio
+adb push clio-android-arm64 /data/data/com.termux/files/usr/bin/clio
 adb shell chmod +x /data/data/com.termux/files/usr/bin/clio
 
 # Or via Termux over SSH
-scp clio-arm64 termux@device:/data/data/com.termux/files/usr/bin/clio
+scp clio-android-arm64 termux@device:/data/data/com.termux/files/usr/bin/clio
 ```
 
 ### Option 4: Temporary Fix (Not Recommended)
@@ -236,7 +231,7 @@ ls -l $PREFIX/bin/clio-run-module  # Termux
 ls -l ~/.local/bin/clio-run-module # Linux
 
 # If missing, reinstall
-curl -sfL https://raw.githubusercontent.com/themobileprof/clio/main/install.sh | bash
+curl -fsSL https://clio.themobileprof.com/clio | sh
 ```
 
 ### Issue: "Module database not found"

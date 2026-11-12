@@ -108,6 +108,8 @@ func TestDetectSetupWizards(t *testing.T) {
 		{"install git and gh", "setup", "git_setup"},
 		{"install postgres", "setup", "database_setup"},
 		{"setup devtools", "setup", "devtools_setup"},
+		{"setup site", "setup", "site_setup"},
+		{"build a website", "setup", "site_setup"},
 		{"clio-run-module termux_setup setup", "setup", "termux_setup"},
 		{"clio-run-module neovim_setup setup", "setup", "neovim_setup"},
 	}

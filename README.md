@@ -218,7 +218,15 @@ Or inside Clio: `setup neovim`. `setup vim` opens this same wizard. It installs 
 - `,e` opens the file tree, `,p` or Ctrl-p finds a file
 - `,w` saves, `,q` quits, `gcc` comments a line
 
-On an HTML file, `,ga` and `,gr` append the Pico CSS rules to the prompt you type. The API key is stored in `~/.config/gp/deepseek.key` (mode 600). The editor config is `~/.config/nvim/init.lua`, which you can edit like any other file. Switch `deepseek-flash` to `deepseek-v4-pro` in that file if you want the stronger model.
+On a plain HTML file, `,ga` and `,gr` append the Pico CSS rules to the prompt you type. A site from `clio site_setup` is different: the prompt edits the view inside `index.html` and leaves the Pico theme, the header, and the light and dark buttons in place. The API key is stored in `~/.config/gp/deepseek.key` (mode 600). The editor config is `~/.config/nvim/init.lua`, which you can edit like any other file. Switch `deepseek-flash` to `deepseek-v4-pro` in that file if you want the stronger model.
+
+**Site (Pico theme, Vue pages, no Node):**
+
+```bash
+$ clio site_setup
+```
+
+Or inside Clio: `setup site`. The wizard asks for a folder, a name, the pages, and one Pico color. Light and dark are both on the page. `site.config.js` lists the other colors and the appearance choices.
 
 ### Module Sync
 To fetch the latest automation modules from the central repository:

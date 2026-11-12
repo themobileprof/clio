@@ -4,7 +4,9 @@ Do these parts in order. Commands under **Terminal** run in the shell. Commands 
 
 You need a phone with Termux or a Linux computer, a [GitHub](https://github.com) account, a [DeepSeek API key](https://platform.deepseek.com/api_keys), and later a server login (hostname, username, and a key or password). Git, GitHub, and SSH are shell commands.
 
-On a phone, open [clio.themobileprof.com/termux](https://clio.themobileprof.com/termux) and tap Download Termux. That page gives you the GitHub file for this phone. Android shows a warning. Open the details and tap Install anyway. The Play Store copy cannot run a program you download. You should see a `$` prompt. On a computer, open the terminal.
+On a phone, open [clio.themobileprof.com/termux](https://clio.themobileprof.com/termux) and tap Download Termux. That page gives you the GitHub file for this phone. Android shows a warning. Open the details and tap Install anyway. The Play Store copy cannot run a program you download. You should see a `$` prompt.
+
+On Windows, open [clio.themobileprof.com/windows](https://clio.themobileprof.com/windows) and finish that page first. You will get an Ubuntu window. The commands below go in that window, not in PowerShell. On Linux, open the terminal.
 
 ## 1. Install Clio
 
@@ -99,79 +101,40 @@ gh auth status
 git config --global user.name
 ```
 
-## 6. Generate the site with Pico CSS
+## 6. Generate the site
 
-[Pico CSS](https://picocss.com) 2.1.1 supplies the navigation bar, the responsive grid, the article cards, and the footer color. On a phone the navigation links stack in a vertical list. The model writes HTML only. It must not add a `<style>` element. A hero belongs on the home page. Other pages use the shape that fits them: prose for an about page, a form for a contact page.
+The site wizard writes the folder. You choose a Pico color by name. Light and dark are already on the page, with System, Light, and Dark in the header. The wizard does not write a stylesheet.
 
-Photos go in `images/` before you generate. Name each file for what it shows, such as `images/hero.jpg`. Neovim passes those exact names into the prompt. The model does not download pictures.
-
-**Terminal, before Neovim**
+**Terminal**
 
 ```bash
-mkdir -p ~/my-site/css ~/my-site/images
+clio site_setup
+```
+
+Answer the folder, the site name, the pages, one sentence for each page, and a Pico color. Press Enter on the color to keep azure. Other names are amber, blue, cyan, fuchsia, green, grey, indigo, jade, lime, orange, pink, pumpkin, purple, red, sand, slate, violet, yellow, and zinc.
+
+Settings are in `site.config.js` in that folder. The comments list the other colors and the appearance choices: `system`, `light`, and `dark`. After you change the color, run `clio site_setup` again and say yes. That downloads the matching Pico file and keeps the pages you already wrote.
+
+Photos go in `images/` before you edit a page. Name each file for what it shows, such as `images/hero.jpg`.
+
+**Preview**
+
+```bash
 cd ~/my-site
-cp ~/.clio/share/pico.min.css css/
-nvim index.html
-```
-
-If that file is missing, download it once and copy it again:
-
-```bash
-mkdir -p ~/.clio/share
-curl -fsSL -o ~/.clio/share/pico.min.css \
-  https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css
-grep -q clio-nav ~/.clio/share/pico.min.css || cat >> ~/.clio/share/pico.min.css << 'EOF'
-
-/* clio-nav: stack the bar on a phone */
-@media (max-width: 767px) {
-  nav, nav ul, nav ol { flex-direction: column; align-items: stretch; }
-  nav li { display: block; }
-  nav li :where(a, [role=link]) { display: block; }
-}
-EOF
-cp ~/.clio/share/pico.min.css css/
-```
-
-**Neovim:** press `,ga` and type the page. On an HTML file the editor adds the Pico rules to that prompt.
-
-```text
-A personal homepage with my name, a short intro, and a link to about.html.
-```
-
-`:w` then `:q`.
-
-**Terminal, after you quit**
-
-```bash
-nvim about.html
-```
-
-**Neovim:** press `,ga` and type:
-
-```text
-An about page with one paragraph and a link back to index.html.
-```
-
-`:w` then `:q`.
-
-**Terminal, after you quit**
-
-```bash
-find . -type f | sort
-grep pico index.html
-```
-
-You should see `css/pico.min.css`, `index.html`, and `about.html`.
-
-Preview on a computer by opening `index.html`. On a phone:
-
-```bash
 python3 -m http.server 8080
 ```
 
-If `python3` is missing: `pkg install -y python`, then run it again. Open `http://127.0.0.1:8080`. Press Ctrl-C when you are done.
+If `python3` is missing: `pkg install -y python`, then run it again. Open `http://127.0.0.1:8080`. Tap System, Light, and Dark. Press Ctrl-C when you are done.
 
-**If the page is empty:** fix the key in part 4 and run `,ga` again. **If there is no layout:** `ls -l css` should show a non-empty Pico file. Copy `~/.clio/share/pico.min.css` again if it does not. A `<style>` block in the HTML is what makes the page look plain. Generate again after this Pico file is the one linked in the head.
+**Neovim, to change a page**
+
+```bash
+nvim index.html
+```
+
+Move into one `clio-view` block. Select those lines with `V`, press `,gr`, and say what to change. On this file the editor keeps the header, the Pico theme, and the light and dark buttons.
+
+**If a page is empty:** fix the key in part 4, then select that view and run `,gr` again. **If there is no layout:** `ls css` should show a non-empty Pico file. Run `clio site_setup` again and say yes.
 
 ## 7. Push to GitHub
 

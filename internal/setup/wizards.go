@@ -114,6 +114,26 @@ func AllWizards() []Wizard {
 			},
 			Time: "5–10 minutes",
 		},
+		{
+			ID: "site", ModuleID: "site_setup", Flow: "setup",
+			Title: "Site", Icon: "🌐",
+			Description: "A Pico site with Vue pages, light and dark, and a settings file",
+			Aliases: []string{
+				"site", "site setup", "setup site", "build a site", "build a website",
+				"generate a site", "create a website", "site_setup",
+			},
+			Phrases: [][]string{
+				{"setup", "site"}, {"build", "website"}, {"build", "site"},
+				{"generate", "site"}, {"create", "website"},
+			},
+			Includes: []string{
+				"Pico color theme, chosen by name",
+				"Light and dark on the page, with System, Light, and Dark",
+				"site.config.js lists the other themes and appearance choices",
+				"Vue pages, no Node.js",
+			},
+			Time: "a few minutes",
+		},
 	}
 }
 

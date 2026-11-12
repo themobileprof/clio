@@ -22,6 +22,8 @@ func TestResolveSetup(t *testing.T) {
 		{"setup vim plugins", MatchWizard, "neovim"},
 		{"install postgres", MatchWizard, "database"},
 		{"setup devtools", MatchWizard, "devtools"},
+		{"setup site", MatchWizard, "site"},
+		{"build a website", MatchWizard, "site"},
 		{"list files", MatchNone, ""},
 		{"check disk space", MatchNone, ""},
 	}

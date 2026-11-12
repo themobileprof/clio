@@ -110,7 +110,7 @@ func SyncWithOptions(full bool) error {
 // isEssentialModule returns true for modules needed on constrained Termux devices.
 func isEssentialModule(moduleID string) bool {
 	switch moduleID {
-	case "termux_setup", "neovim_setup", "git_setup", "devtools_setup", "database_setup":
+	case "termux_setup", "neovim_setup", "git_setup", "devtools_setup", "database_setup", "site_setup":
 		return true
 	}
 	lower := strings.ToLower(moduleID)

@@ -65,6 +65,7 @@ func matchWizardToken(token string) *Wizard {
 	aliases := map[string]string{
 		"termux_setup": "termux", "neovim_setup": "neovim",
 		"git_setup": "git", "devtools_setup": "devtools", "database_setup": "database",
+		"site_setup": "site",
 	}
 	if id, ok := aliases[token]; ok {
 		return WizardByID(id)
@@ -101,7 +102,7 @@ func RunCommand() string {
 
 // ShortDescription summarizes setup for detection results.
 func ShortDescription() string {
-	return "Interactive setup wizards (Termux, Neovim, Git, dev tools, databases)"
+	return "Interactive setup wizards (Termux, Neovim, Git, dev tools, databases, sites)"
 }
 
 // ShowMenu prints the setup wizard catalog.
